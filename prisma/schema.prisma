@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  /// Allowed values: LEARNER, TRAINER, ADMIN
+  role         String   @default("LEARNER")
+  createdAt    DateTime @default(now())
+
+  trainerProfile   TrainerProfile?
+  trainedCourses   Course[]          @relation("TrainerCourses")
+  enrollments      Enrollment[]      @relation("LearnerEnrollments")
+  payments         Payment[]         @relation("LearnerPayments")
+  marketingContent MarketingContent[] @relation("TrainerMarketing")
+  automationTasks  AutomationTask[]  @relation("TrainerAutomation")
+  trainingSessions TrainingSession[] @relation("TrainerSessions")
+  notifications    Notification[]
+  chatMessages     ChatMessage[]
+
+  @@index([email])
+}
+
+model TrainerProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  brandName        String
+  tagline          String
+  bio              String
+  /// Store as comma-separated values or JSON text for SQLite portability.
+  skills           String
+  portfolioSummary String
+  logoPrompt       String
+  /// Store as JSON text for SQLite portability.
+  socialLinks      String
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id           String   @id @default(cuid())
+  trainerId    String
+  title        String
+  description  String
+  category     String
+  level        String
+  price        Float
+  duration     String
+  thumbnailUrl String
+  courseVideoUrl String?
+  discountPercent Float?
+  discountLabel String?
+  discountActive Boolean @default(false)
+  /// Allowed values: DRAFT, PUBLISHED
+  status       String   @default("DRAFT")
+  createdAt    DateTime @default(now())
+
+  trainer          User               @relation("TrainerCourses", fields: [trainerId], references: [id], onDelete: Cascade)
+  enrollments      Enrollment[]
+  payments         Payment[]
+  marketingContent MarketingContent[]
+  trainingSessions TrainingSession[]
+  chatMessages     ChatMessage[]
+
+  @@index([trainerId])
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  learnerId String
+  courseId  String
+  paymentId String   @unique
+  progress  Int      @default(0)
+  /// Allowed values: ACTIVE, COMPLETED, CANCELLED
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  learner User    @relation("LearnerEnrollments", fields: [learnerId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerId, courseId])
+  @@index([learnerId])
+  @@index([courseId])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  learnerId     String
+  courseId      String
+  amount        Float
+  /// Allowed values: PENDING, PAID, FAILED, REFUNDED
+  status        String   @default("PENDING")
+  receiptNumber String   @unique
+  paymentMethod String
+  createdAt     DateTime @default(now())
+
+  learner    User        @relation("LearnerPayments", fields: [learnerId], references: [id], onDelete: Cascade)
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment Enrollment?
+
+  @@index([learnerId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model MarketingContent {
+  id            String    @id @default(cuid())
+  trainerId     String
+  courseId      String?
+  /// Allowed values: CAPTION, AD, TAGLINE, BIO, PORTFOLIO
+  type          String
+  prompt        String
+  generatedText String
+  /// Allowed values: INSTAGRAM, LINKEDIN, FACEBOOK, EMAIL
+  platform      String
+  /// Allowed values: DRAFT, SCHEDULED, POSTED
+  status        String    @default("DRAFT")
+  scheduledAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  trainer User    @relation("TrainerMarketing", fields: [trainerId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([trainerId])
+  @@index([courseId])
+}
+
+model AutomationTask {
+  id          String   @id @default(cuid())
+  trainerId   String
+  /// Allowed values: COURSE_PUBLISHING, SOCIAL_POST, EMAIL_REMINDER, CHATBOT_REPLY, SESSION_REMINDER
+  type        String
+  title       String
+  description String
+  /// Allowed values: PENDING, RUNNING, COMPLETED, FAILED
+  status      String   @default("PENDING")
+  scheduledAt DateTime
+  createdAt   DateTime @default(now())
+
+  trainer User @relation("TrainerAutomation", fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId])
+}
+
+model TrainingSession {
+  id          String   @id @default(cuid())
+  trainerId   String
+  courseId    String
+  title       String
+  startTime   DateTime
+  endTime     DateTime
+  meetingLink String
+  sessionVideoUrl String?
+  /// Allowed values: SCHEDULED, COMPLETED, CANCELLED
+  status      String   @default("SCHEDULED")
+  createdAt   DateTime @default(now())
+
+  trainer User   @relation("TrainerSessions", fields: [trainerId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId])
+  @@index([courseId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String?
+  /// Allowed values: USER, AI_BOT
+  sender    String
+  message   String
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([courseId])
+}

@@ -1,0 +1,239 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+html.skillpilot-dark {
+  color-scheme: dark;
+}
+
+html.skillpilot-dark body,
+html.skillpilot-dark .bg-cloud,
+html.skillpilot-dark .bg-slate-50 {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+html.skillpilot-dark .bg-white,
+html.skillpilot-dark .bg-white\/70,
+html.skillpilot-dark .bg-cloud\/95 {
+  background: #111827 !important;
+  color: #f8fafc !important;
+}
+
+html.skillpilot-dark .bg-slate-950,
+html.skillpilot-dark .bg-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.skillpilot-dark .bg-blue-50,
+html.skillpilot-dark .bg-purple-50,
+html.skillpilot-dark .bg-indigo-50,
+html.skillpilot-dark .bg-cyan-50,
+html.skillpilot-dark .bg-amber-50,
+html.skillpilot-dark .bg-emerald-50,
+html.skillpilot-dark .bg-red-50,
+html.skillpilot-dark .bg-rose-50,
+html.skillpilot-dark .bg-limewash {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+}
+
+html.skillpilot-dark .text-ink,
+html.skillpilot-dark .text-black,
+html.skillpilot-dark .text-slate-950,
+html.skillpilot-dark .text-slate-900,
+html.skillpilot-dark .text-slate-800,
+html.skillpilot-dark .text-gray-950,
+html.skillpilot-dark .text-gray-900,
+html.skillpilot-dark .text-gray-800,
+html.skillpilot-dark .text-zinc-950,
+html.skillpilot-dark .text-zinc-900,
+html.skillpilot-dark .text-neutral-950,
+html.skillpilot-dark .text-neutral-900 {
+  color: #f8fafc !important;
+}
+
+html.skillpilot-dark .text-ink\/55,
+html.skillpilot-dark .text-ink\/60,
+html.skillpilot-dark .text-ink\/65,
+html.skillpilot-dark .text-ink\/70,
+html.skillpilot-dark .text-slate-400,
+html.skillpilot-dark .text-slate-500,
+html.skillpilot-dark .text-slate-600,
+html.skillpilot-dark .text-slate-700,
+html.skillpilot-dark .text-gray-500,
+html.skillpilot-dark .text-gray-600,
+html.skillpilot-dark .text-gray-700,
+html.skillpilot-dark .text-zinc-500,
+html.skillpilot-dark .text-zinc-600,
+html.skillpilot-dark .text-neutral-500,
+html.skillpilot-dark .text-neutral-600 {
+  color: #cbd5e1 !important;
+}
+
+html.skillpilot-dark .text-blue-900,
+html.skillpilot-dark .text-blue-800,
+html.skillpilot-dark .text-blue-700,
+html.skillpilot-dark .text-purple-900,
+html.skillpilot-dark .text-purple-800,
+html.skillpilot-dark .text-purple-700,
+html.skillpilot-dark .text-indigo-700,
+html.skillpilot-dark .text-moss {
+  color: #93c5fd !important;
+}
+
+html.skillpilot-dark .text-emerald-900,
+html.skillpilot-dark .text-emerald-800,
+html.skillpilot-dark .text-emerald-700 {
+  color: #86efac !important;
+}
+
+html.skillpilot-dark .text-amber-900,
+html.skillpilot-dark .text-amber-800,
+html.skillpilot-dark .text-amber-700 {
+  color: #fde68a !important;
+}
+
+html.skillpilot-dark .text-red-900,
+html.skillpilot-dark .text-red-800,
+html.skillpilot-dark .text-red-700,
+html.skillpilot-dark .text-rose-700 {
+  color: #fca5a5 !important;
+}
+
+html.skillpilot-dark .border-ink\/10,
+html.skillpilot-dark .border-ink\/15,
+html.skillpilot-dark .border-slate-100,
+html.skillpilot-dark .border-slate-200,
+html.skillpilot-dark .border-blue-100,
+html.skillpilot-dark .border-purple-100,
+html.skillpilot-dark .border-emerald-100 {
+  border-color: rgba(226, 232, 240, 0.16) !important;
+}
+
+html.skillpilot-dark input,
+html.skillpilot-dark textarea,
+html.skillpilot-dark select {
+  background: #0b1220 !important;
+  color: #f8fafc !important;
+  border-color: rgba(226, 232, 240, 0.18) !important;
+}
+
+html.skillpilot-dark input::placeholder,
+html.skillpilot-dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.skillpilot-dark table thead,
+html.skillpilot-dark .bg-slate-100,
+html.skillpilot-dark .bg-slate-50 {
+  background: #1e293b !important;
+}
+
+html.skillpilot-dark .bg-\[linear-gradient\(135deg\,\#eff6ff\,\#ffffff_48\%\,\#f5f3ff\)\] {
+  background: linear-gradient(135deg, #111827, #172554 48%, #312e81) !important;
+}
+
+html.skillpilot-dark .recharts-text,
+html.skillpilot-dark .recharts-cartesian-axis-tick-value,
+html.skillpilot-dark .recharts-legend-item-text {
+  fill: #cbd5e1 !important;
+  color: #cbd5e1 !important;
+}
+
+html.skillpilot-dark .recharts-tooltip-wrapper {
+  color: #0f172a !important;
+}
+
+html.skillpilot-dark .shadow-sm,
+html.skillpilot-dark .shadow-xl,
+html.skillpilot-dark .shadow-2xl {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35) !important;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+@keyframes skillpilot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes skillpilot-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes skillpilot-confetti-burst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--burst-x)), var(--burst-y)) scale(1);
+  }
+}
+
+.skillpilot-float {
+  animation: skillpilot-float 7s ease-in-out infinite;
+}
+
+.skillpilot-glow-pulse {
+  animation: skillpilot-pulse-glow 8s ease-in-out infinite;
+}
+
+.skillpilot-confetti {
+  animation: skillpilot-confetti-burst 720ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .skillpilot-float,
+  .skillpilot-glow-pulse,
+  .skillpilot-confetti {
+    animation: none !important;
+  }
+}
