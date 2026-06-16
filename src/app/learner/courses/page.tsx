@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RoleShell } from "@/components/layout/role-shell";
@@ -9,41 +11,69 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stockCourses } from "@/lib/stock-courses";
 
+type SafeEnrollment = {
+  id: string;
+  courseId: string;
+  status: string;
+  progress: number;
+  course?: {
+    title?: string;
+    description?: string | null;
+    trainer?: {
+      fullName?: string | null;
+      trainerProfile?: {
+        brandName?: string | null;
+      } | null;
+    } | null;
+    trainingSessions?: {
+      startTime: Date | string;
+    }[];
+  } | null;
+};
+
 export default async function LearnerCoursesPage() {
-  const user = await getCurrentUser();
+  let user;
+
+  try {
+    user = await getCurrentUser();
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Failed to load current user:", error);
+    }
+
+    redirect("/login");
+  }
 
   if (!user) {
     redirect("/login");
   }
 
-  const enrollments = await prisma.enrollment.findMany({
-    where: { learnerId: user.id },
-    include: {
-      course: {
-        include: {
-          trainer: { include: { trainerProfile: true } },
-          trainingSessions: {
-            where: { status: "SCHEDULED", startTime: { gte: new Date() } },
-            orderBy: { startTime: "asc" },
-            take: 1
-          }
-        }
-      }
-    },
-    orderBy: { createdAt: "desc" }
-  });
+  const enrollments = await getSafeEnrollments(user.id);
 
   return (
-    <RoleShell user={user} label="Learner workspace" title="My courses" activeHref="/learner/courses">
-      <section className="rounded-3xl border border-ink/10 bg-white p-6 shadow-sm">
+    <RoleShell
+      user={user}
+      label="Learner workspace"
+      title="My courses"
+      activeHref="/learner/courses"
+    >
+      <section className="rounded-3xl border border-ink/10 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-moss">Enrolled learning</p>
-            <h2 className="mt-3 text-3xl font-black text-ink">Keep shopping and studying separate.</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
-              These are the courses you already own. Continue lessons, check progress, and jump back into upcoming sessions.
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-moss dark:text-emerald-300">
+              Enrolled learning
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black text-ink dark:text-slate-100">
+              Keep shopping and studying separate.
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65 dark:text-slate-300">
+              These are the courses you already own. Continue lessons, check
+              progress, and jump back into upcoming sessions.
             </p>
           </div>
+
           <Button asChild variant="secondary">
             <Link href="/learner/discover">Discover more courses</Link>
           </Button>
@@ -52,51 +82,134 @@ export default async function LearnerCoursesPage() {
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         {enrollments.length ? (
-          enrollments.map((enrollment, index) => (
-            <article key={enrollment.id} className="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl motion-reduce:hover:translate-y-0">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Badge className={enrollment.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700" : undefined}>{enrollment.status.toLowerCase()}</Badge>
-                  <h3 className="mt-3 text-xl font-bold text-ink">{enrollment.course.title}</h3>
-                  <p className="mt-1 text-sm text-ink/55">{enrollment.course.trainer.trainerProfile?.brandName ?? enrollment.course.trainer.fullName}</p>
+          enrollments.map((enrollment, index) => {
+            const course = enrollment.course;
+            const trainerName =
+              course?.trainer?.trainerProfile?.brandName ??
+              course?.trainer?.fullName ??
+              "SkillPilot Trainer";
+
+            const nextSession = course?.trainingSessions?.[0];
+
+            return (
+              <article
+                key={enrollment.id}
+                className="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl motion-reduce:hover:translate-y-0 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <Badge
+                      className={
+                        enrollment.status === "COMPLETED"
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                          : "dark:bg-slate-800 dark:text-slate-200"
+                      }
+                    >
+                      {enrollment.status.toLowerCase()}
+                    </Badge>
+
+                    <h3 className="mt-3 text-xl font-bold text-ink dark:text-slate-100">
+                      {course?.title ?? "Untitled course"}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-ink/55 dark:text-slate-400">
+                      {trainerName}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                    {nextStep(index, enrollment.progress)}
+                  </span>
                 </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700">{nextStep(index, enrollment.progress)}</span>
-              </div>
-              <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/65">{enrollment.course.description}</p>
-              <Progress className="mt-5 h-3" value={enrollment.progress} />
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-ink/55">{enrollment.progress}% complete</p>
-                <div className="flex flex-wrap gap-2">
-                  {enrollment.status === "COMPLETED" ? (
-                    <Button asChild variant="secondary">
-                      <Link href={`/learner/certificate/${enrollment.courseId}`}>View Certificate</Link>
-                    </Button>
-                  ) : null}
-                  <Button asChild>
-                    <Link href={`/learner/course-player/${enrollment.courseId}`}>Start / Do Course</Link>
-                  </Button>
-                </div>
-              </div>
-              {enrollment.course.trainingSessions[0] ? (
-                <p className="mt-4 rounded-lg bg-cloud px-3 py-2 text-sm text-ink/65">
-                  Next live session: {formatDate(enrollment.course.trainingSessions[0].startTime)}
+
+                <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/65 dark:text-slate-300">
+                  {course?.description ??
+                    "Continue your learning journey with this SkillPilot AI course."}
                 </p>
-              ) : null}
-            </article>
-          ))
+
+                <Progress className="mt-5 h-3" value={enrollment.progress} />
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-ink/55 dark:text-slate-400">
+                    {enrollment.progress}% complete
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    {enrollment.status === "COMPLETED" ? (
+                      <Button asChild variant="secondary">
+                        <Link href={`/learner/certificate/${enrollment.courseId}`}>
+                          View Certificate
+                        </Link>
+                      </Button>
+                    ) : null}
+
+                    <Button asChild>
+                      <Link href={`/learner/course-player/${enrollment.courseId}`}>
+                        Start / Do Course
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+
+                {nextSession ? (
+                  <p className="mt-4 rounded-lg bg-cloud px-3 py-2 text-sm text-ink/65 dark:bg-slate-800 dark:text-slate-300">
+                    Next live session: {formatDate(nextSession.startTime)}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })
         ) : (
-          <div className="rounded-2xl border border-ink/10 bg-white p-8 text-center shadow-sm lg:col-span-2">
-            <h3 className="text-xl font-bold text-ink">No enrolled courses yet</h3>
-            <p className="mt-2 text-sm text-ink/60">Browse the catalog and use the mock AI Payment Agent checkout to add your first course.</p>
+          <div className="rounded-2xl border border-ink/10 bg-white p-8 text-center shadow-sm lg:col-span-2 dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="text-xl font-bold text-ink dark:text-slate-100">
+              No enrolled courses yet
+            </h3>
+
+            <p className="mt-2 text-sm text-ink/60 dark:text-slate-300">
+              Browse the catalog and use the mock AI Payment Agent checkout to
+              add your first course.
+            </p>
+
             <Button asChild className="mt-5">
               <Link href="/learner/discover">Discover courses</Link>
             </Button>
           </div>
         )}
+
         <LocalEnrolledCourses stockCourses={stockCourses} />
       </section>
     </RoleShell>
   );
+}
+
+async function getSafeEnrollments(learnerId: string): Promise<SafeEnrollment[]> {
+  try {
+    return await prisma.enrollment.findMany({
+      where: { learnerId },
+      include: {
+        course: {
+          include: {
+            trainer: { include: { trainerProfile: true } },
+            trainingSessions: {
+              where: {
+                status: "SCHEDULED",
+                startTime: { gte: new Date() },
+              },
+              orderBy: { startTime: "asc" },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Learner enrollments fallback used:", error);
+    }
+
+    return [];
+  }
 }
 
 function nextStep(index: number, progress: number) {
@@ -104,14 +217,16 @@ function nextStep(index: number, progress: number) {
     return "Review mode";
   }
 
-  return ["Next lesson: 8 mins", "15 mins left", "Quiz review: 10 mins"][index % 3];
+  return ["Next lesson: 8 mins", "15 mins left", "Quiz review: 10 mins"][
+    index % 3
+  ];
 }
 
-function formatDate(date: Date) {
+function formatDate(date: Date | string) {
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
     hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+    minute: "2-digit",
+  }).format(new Date(date));
 }
