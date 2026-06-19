@@ -105,7 +105,7 @@ export function SubscriptionStatusCard({
 
       {learnerAccess ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
-          <MiniStat label="Courses used" value={`${usage.courseEnrollments}/${formatLimit(learnerAccess.courseLimit)}`} />
+          <MiniStat label="Sub courses used" value={`${usage.courseEnrollments}/${formatLimit(learnerAccess.courseLimit)}`} />
           <MiniStat label="Chatbot used" value={`${usage.chatbotMessages}/${formatLimit(learnerAccess.chatbotLimit)}`} />
           <MiniStat label="Certificates" value={learnerAccess.certificates ? "Unlocked" : "Locked"} />
           <MiniStat label="Reminders" value={learnerAccess.priorityReminders ? "Priority" : "Standard"} />

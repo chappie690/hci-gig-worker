@@ -8,7 +8,7 @@ import { calculateFinalAmount, generateReceiptNumber, paymentMethods } from "@/l
 import { prisma } from "@/lib/prisma";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { stockCourses } from "@/lib/stock-courses";
-import { describeSubscription, formatSubscriptionPrice, getDefaultSubscription, getLearnerPlanAccess, getPlansForRole, type SubscriptionMetadata } from "@/lib/subscriptions";
+import { describeSubscription, formatSubscriptionPrice, getDefaultSubscription, getPlansForRole, type SubscriptionMetadata } from "@/lib/subscriptions";
 
 const chatbotSchema = z.object({
   message: z.string({ required_error: "Message is required." }).trim().min(2, "Ask a course question first."),
@@ -257,20 +257,6 @@ async function handlePurchaseConfirmation(user: LearnerUser, courseId: string | 
     ]);
   }
 
-  const currentSubscription = subscription ?? getDefaultSubscription("LEARNER");
-  const access = getLearnerPlanAccess(currentSubscription.planName);
-  if (access.courseLimit <= 0) {
-    return createSyntheticChatResponse(user.id, `Course enrollment is locked on ${currentSubscription.planName}. Upgrade to Starter Learner at $19/month or Pro Learner at $49/month before buying a course.`, [
-      {
-        type: "VIEW_COURSE",
-        title: "Manage subscription",
-        description: "Open Settings to upgrade with a mock subscription receipt.",
-        buttonLabel: "Manage Subscription",
-        href: "/learner/settings"
-      }
-    ]);
-  }
-
   const course = await prisma.course.findFirst({
     where: { id: courseId, status: "PUBLISHED" },
     include: { enrollments: true }
@@ -473,6 +459,18 @@ async function buildPaymentAgentReply({
 
   if (intent === "CERTIFICATES") {
     const completed = enrollments.filter((enrollment) => enrollment.status === "COMPLETED" || enrollment.progress >= 100);
+    const currentSubscription = subscription ?? getDefaultSubscription("LEARNER");
+
+    if (currentSubscription.planName === "Free Plan") {
+      return {
+        source: "payment-agent" as const,
+        message: completed.length
+          ? `You have passed course work that could qualify for a certificate, but certificates are locked on Free Plan. You can still access purchased courses. Upgrade to Starter Learner at $19/month or Pro Learner at $49/month to unlock certificates.`
+          : "Certificates are locked on Free Plan. You can still buy and access individual courses, then upgrade later if you want certificates after passing with at least 8/10.",
+        actionCards: learnerSubscriptionActions("upgrade pro learner", currentSubscription)
+      };
+    }
+
     return {
       source: "payment-agent" as const,
       message: completed.length
@@ -623,10 +621,10 @@ function subscriptionExplanation(lower: string, subscription: SubscriptionMetada
 
   if (lower.includes("enroll") || lower.includes("course")) {
     return subscription.planName === "Free Plan"
-      ? `Free Plan lets you browse courses but does not include course enrollment. Upgrade to Starter Learner at $19/month for up to 3 courses/month, or Pro Learner at $49/month for unlimited access. ${cancelledNote}`
+      ? `As a Free Plan learner, you can still browse, buy individual courses, and access courses you purchased. The Free Plan only limits certificates, Pilot Pete usage, and priority session reminders. If you want certificates, upgrade to Starter Learner at $19/month or Pro Learner at $49/month. ${cancelledNote}`
       : subscription.planName === "Starter Learner"
-        ? `Starter Learner includes up to 3 courses/month. If you reached that limit, upgrade to Pro Learner at $49/month for unlimited access. ${cancelledNote}`
-        : `Pro Learner includes unlimited course access. If enrollment is blocked, it is likely because the course is already enrolled or unavailable. ${cancelledNote}`;
+        ? `Starter Learner includes up to 3 subscription courses/month, and you can still buy individual courses separately. Purchased courses remain accessible even if subscription usage is full. ${cancelledNote}`
+        : `Pro Learner includes unlimited subscription course access, and you can also buy individual courses. If enrollment is blocked, it is likely because the course is already enrolled or unavailable. ${cancelledNote}`;
   }
 
   if (lower.includes("chatbot") || lower.includes("limited")) {
@@ -700,7 +698,7 @@ function learnerSubscriptionActions(lower: string, subscription: SubscriptionMet
 async function smartPaymentAgentText(fallback: string, question: string, context: unknown) {
   const groq = await generateText({
     system:
-      "You are SkillPilot AI Payment Agent inside a demo learning platform. Give concise, professional learner payment, promotion, subscription, or course-plan advice. Use $ currency only. Never claim to process real money. Never ask for full card details. Mention that checkout is mock/demo when relevant.",
+      "You are SkillPilot AI Payment Agent inside a demo learning platform. Give concise, professional learner payment, promotion, subscription, or course-plan advice. Use $ currency only. Never claim to process real money. Never ask for full card details. Important plan rule: Free Plan learners can browse, buy individual courses, and access purchased courses; Free Plan only limits certificates, Pilot Pete usage, and priority reminders. Mention that checkout is mock/demo when relevant.",
     user: {
       question,
       fallbackFacts: fallback,

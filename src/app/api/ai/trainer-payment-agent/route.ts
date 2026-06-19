@@ -39,6 +39,33 @@ const financeAgentSchema = z.object({
   escalationRecipient: z.enum(["learner", "admin", "none"])
 });
 
+const financeIntentSchema = z.object({
+  intent: z.enum([
+    "financial_status",
+    "revenue_summary",
+    "pending_payments",
+    "failed_payments",
+    "duplicate_payments",
+    "suspicious_transactions",
+    "course_revenue",
+    "most_expensive_course",
+    "learner_purchase_lookup",
+    "subscription_status",
+    "email_learner",
+    "escalate_admin",
+    "refund_issue",
+    "pricing_advice",
+    "general_finance_question"
+  ]),
+  confidence: z.number().min(0).max(1),
+  learnerName: z.string().nullable().optional(),
+  courseHint: z.string().nullable().optional(),
+  issueHint: z.string().nullable().optional()
+});
+
+type ClassifiedFinanceIntent = z.infer<typeof financeIntentSchema>;
+type FinanceIntent = ClassifiedFinanceIntent["intent"];
+
 type PaymentContext = {
   id: string;
   learnerId: string;
@@ -140,15 +167,17 @@ export async function POST(request: Request) {
     const signals = detectFinanceSignals(context);
     const analytics = buildFinanceAnalytics(context, courseContext);
     const subscription = body.subscription?.userRole === "TRAINER" ? body.subscription : getDefaultSubscription("TRAINER");
-    const fallback = buildFallbackFinanceReply(body.message, context, signals, analytics, user, subscription);
+    const classification = await classifyFinanceIntent(body.message, analytics, signals, context, courseContext);
+    const fallback = buildFallbackFinanceReply(body.message, context, signals, analytics, user, subscription, classification.intent);
 
     const groq = await generateJSON({
       system:
-        "You are SkillPilot AI Payment Agent for trainers. Answer finance questions directly first, with explanation, action, and next step. Handle total revenue, course revenue, learner payment status, double payment, failed payment, refund request, suspicious transaction, fraud indicator, subscription issue, pricing recommendation, discount suggestion, receipt confirmation, learner emails, and admin reports. This is a demo: do not claim real email, refund, payment, or fraud enforcement happened. If the prompt asks to email/send/tell/notify, draft a professional mock email and set requiresEmail true. For normal questions, set requiresEmail false. If risk is suspicious or high, recommend admin review or generate an admin report only when escalation is appropriate. Return structured JSON only.",
+        "You are SkillPilot AI Payment Agent for trainers. Understand informal finance prompts semantically, then answer directly first with explanation, action, and next step. Handle money status, income, course revenue, learner payment status, unpaid learners, double payments, failed payments, refund issues, suspicious transactions, fraud indicators, subscription issues, pricing recommendations, discount suggestions, receipt confirmations, learner emails, and admin reports. This is a demo: do not claim real email, refund, payment, or fraud enforcement happened. If the classified intent is email_learner, draft a professional mock learner email and set requiresEmail true. If the classified intent is escalate_admin, draft a mock admin report/email and set requiresEmail true. For normal questions, set requiresEmail false. Return structured JSON only.",
       user: {
         trainerName: user.fullName,
         trainerEmail: user.email,
         prompt: body.message,
+        classifiedIntent: classification,
         subscription,
         analytics,
         courses: courseContext,
@@ -160,10 +189,11 @@ export async function POST(request: Request) {
       maxTokens: 1200
     });
 
-    const preferLocalAnalytics = shouldPreferLocalAnalytics(body.message);
+    const preferLocalAnalytics = shouldPreferLocalAnalytics(body.message, classification.intent);
     const result = groq.ok && !preferLocalAnalytics ? normalizeFinanceReply(groq.value, fallback, body.message, context, user) : fallback;
 
     return NextResponse.json({
+      intent: classification.intent,
       source: groq.ok ? preferLocalAnalytics ? "local-analytics" : "groq" : "local-fallback",
       message: groq.ok ? undefined : groq.message,
       subscriptionAction: inferTrainerSubscriptionAction(body.message, subscription),
@@ -263,15 +293,138 @@ function normalizeFinanceReply(
   };
 }
 
+async function classifyFinanceIntent(
+  prompt: string,
+  analytics: ReturnType<typeof buildFinanceAnalytics>,
+  signals: ReturnType<typeof detectFinanceSignals>,
+  payments: PaymentContext[],
+  courses: CourseFinanceContext[]
+): Promise<ClassifiedFinanceIntent> {
+  const fallback = classifyFinanceIntentFallback(prompt);
+  const groq = await generateJSON({
+    system:
+      "Classify a trainer finance prompt for SkillPilot AI. The trainer may use slang, fragments, short questions, or incomplete sentences. Return only the closest intent from the enum. Do not answer the question. Do not invent actions.",
+    user: {
+      prompt,
+      fallbackGuess: fallback,
+      financeSnapshot: {
+        totalRevenue: analytics.totalRevenue,
+        pendingAmount: analytics.pendingAmount,
+        failedAmount: analytics.failedAmount,
+        refundedAmount: analytics.refundedAmount,
+        paidCount: analytics.paidCount,
+        pendingCount: analytics.pendingCount,
+        failedCount: analytics.failedCount,
+        refundedCount: analytics.refundedCount,
+        strongestCourse: analytics.highestRevenueCourse?.courseTitle ?? null,
+        mostExpensiveCourse: analytics.mostExpensiveCourse?.courseTitle ?? null,
+        suspiciousSignalCount: signals.length
+      },
+      learnerNames: Array.from(new Set(payments.map((payment) => payment.learnerName))).slice(0, 20),
+      courseTitles: courses.map((course) => course.title).slice(0, 20),
+      suspiciousSignals: signals.slice(0, 5)
+    },
+    schema: financeIntentSchema,
+    temperature: 0,
+    maxTokens: 260
+  });
+
+  if (!groq.ok) {
+    return fallback;
+  }
+
+  return {
+    intent: groq.value.intent,
+    confidence: Number.isFinite(groq.value.confidence) ? groq.value.confidence : fallback.confidence,
+    learnerName: groq.value.learnerName ?? fallback.learnerName ?? null,
+    courseHint: groq.value.courseHint ?? fallback.courseHint ?? null,
+    issueHint: groq.value.issueHint ?? fallback.issueHint ?? null
+  };
+}
+
+function classifyFinanceIntentFallback(prompt: string): ClassifiedFinanceIntent {
+  const lower = normalizePrompt(prompt);
+  const learnerName = extractLearnerNameHint(prompt);
+
+  if (hasAny(lower, ["admin", "escalate", "report"]) && hasAny(lower, ["fraud", "suspicious", "weird", "risk", "risky", "unusual", "strange", "scam", "problem"])) {
+    return makeIntent("escalate_admin", 0.86, learnerName);
+  }
+
+  if (hasAny(lower, ["email", "message", "notify", "tell", "send", "write", "reach out", "contact"]) && !hasAny(lower, ["admin", "escalate", "report"])) {
+    return makeIntent("email_learner", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["refund", "refunds", "return money", "money back", "chargeback"])) {
+    return makeIntent("refund_issue", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["duplicate", "double", "paid twice", "twice", "repeated payment", "multiple payments", "same course twice"])) {
+    return makeIntent("duplicate_payments", 0.9, learnerName);
+  }
+
+  if (hasAny(lower, ["suspicious", "fraud", "weird", "risky", "risk", "unusual", "strange", "scam", "odd payment"])) {
+    return makeIntent("suspicious_transactions", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["pending", "unpaid", "owe", "owes", "not paid", "not pay", "awaiting payment", "who owes", "anyone not paid"])) {
+    return makeIntent("pending_payments", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["failed", "declined", "rejected", "payment problem", "payment issue", "card failed", "student payment failed"])) {
+    return makeIntent("failed_payments", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["most expensive", "highest price", "highest priced", "premium", "costs most", "priciest", "expensive class", "expensive course"])) {
+    return makeIntent("most_expensive_course", 0.9, learnerName);
+  }
+
+  if (hasAny(lower, ["best selling", "best-selling", "top course", "most revenue", "highest revenue", "most money", "top earning", "strongest course", "course gives me most money"])) {
+    return makeIntent("course_revenue", 0.88, learnerName);
+  }
+
+  if (hasAny(lower, ["price", "pricing", "discount", "promotion", "promo", "offer", "charge more", "charge less"])) {
+    return makeIntent("pricing_advice", 0.84, learnerName);
+  }
+
+  if (hasAny(lower, ["subscription", "plan", "renew", "billing", "upgrade", "cancel plan", "business plan", "trainer pro"])) {
+    return makeIntent("subscription_status", 0.86, learnerName);
+  }
+
+  if (hasAny(lower, ["money status", "finance summary", "financial status", "finance status", "payment health", "business status", "status"]) && hasAny(lower, ["money", "finance", "payment", "income", "sales", "revenue", "earn", "earned"])) {
+    return makeIntent("financial_status", 0.86, learnerName);
+  }
+
+  if (hasAny(lower, ["revenue", "income", "earn", "earned", "sales", "money", "cash", "profit", "how much did i earn", "how much i earn"])) {
+    return makeIntent("revenue_summary", 0.84, learnerName);
+  }
+
+  if (hasAny(lower, ["paid", "payment", "receipt", "purchase", "bought", "learner", "student"])) {
+    return makeIntent("learner_purchase_lookup", 0.72, learnerName);
+  }
+
+  return makeIntent("general_finance_question", 0.5, learnerName);
+}
+
+function makeIntent(intent: FinanceIntent, confidence: number, learnerName: string | null = null): ClassifiedFinanceIntent {
+  return {
+    intent,
+    confidence,
+    learnerName,
+    courseHint: null,
+    issueHint: null
+  };
+}
+
 function buildFallbackFinanceReply(
   prompt: string,
   payments: PaymentContext[],
   signals: ReturnType<typeof detectFinanceSignals>,
   analytics: ReturnType<typeof buildFinanceAnalytics>,
   trainer: { fullName: string; email: string },
-  subscription: SubscriptionMetadata
+  subscription: SubscriptionMetadata,
+  intent: FinanceIntent = classifyFinanceIntentFallback(prompt).intent
 ): z.infer<typeof financeAgentSchema> {
-  const insight = buildDirectFinanceInsight(prompt, payments, signals, analytics, subscription);
+  const insight = buildDirectFinanceInsight(prompt, payments, signals, analytics, subscription, intent);
 
   if (insight) {
     return insight;
@@ -279,12 +432,14 @@ function buildFallbackFinanceReply(
 
   const lower = prompt.toLowerCase();
   const learner = findLearner(prompt, payments) ?? inferLearnerFromPrompt(prompt);
-  const highRisk = /\b(fraud|suspicious|abuse|mismatch|high payment|unusually high|admin|escalate)\b/.test(lower);
-  const refund = /\b(refund|refunded|refunds)\b/.test(lower);
-  const failed = /\b(failed|declined|update method|payment failed)\b/.test(lower);
-  const duplicate = /\b(double|duplicate|multiple payments|same course)\b/.test(lower);
+  const highRisk = intent === "suspicious_transactions" || intent === "escalate_admin" || /\b(fraud|suspicious|abuse|mismatch|high payment|unusually high|admin|escalate)\b/.test(lower);
+  const refund = intent === "refund_issue" || /\b(refund|refunded|refunds|money back|return money)\b/.test(lower);
+  const failed = intent === "failed_payments" || /\b(failed|declined|update method|payment failed|payment problem|rejected)\b/.test(lower);
+  const duplicate = intent === "duplicate_payments" || /\b(double|duplicate|multiple payments|same course|paid twice|repeated payment)\b/.test(lower);
   const riskLevel = highRisk ? "high" : duplicate || refund || failed ? "medium" : "low";
-  const escalationRecipient = asksForAdminReport(prompt) ? "admin" : asksForEmail(prompt) ? "learner" : "none";
+  const wantsAdmin = intent === "escalate_admin" || asksForAdminReport(prompt);
+  const wantsLearnerEmail = intent === "email_learner" || asksForEmail(prompt);
+  const escalationRecipient = wantsAdmin ? "admin" : wantsLearnerEmail ? "learner" : "none";
   const issueSummary = summarizeIssue(prompt, signals);
   const recipient = escalationRecipient === "admin"
     ? { name: "SkillPilot Admin", email: "admin@skillpilot.ai" }
@@ -309,11 +464,11 @@ function buildFallbackFinanceReply(
     issueSummary,
     emailSubject: subject,
     emailBody: body,
-    actionTaken: escalationRecipient === "admin" ? "Prepared a mock admin escalation report." : asksForEmail(prompt) ? "Prepared a mock learner finance email." : "Reviewed local payment indicators and prepared guidance.",
-    nextStep: escalationRecipient === "admin" ? "Send the mock admin report for review." : asksForEmail(prompt) ? "Preview and send the mock email if it looks correct." : "Review the recommendation and choose whether to draft an email.",
+    actionTaken: escalationRecipient === "admin" ? "Prepared a mock admin escalation report." : wantsLearnerEmail ? "Prepared a mock learner finance email." : "Reviewed local payment indicators and prepared guidance.",
+    nextStep: escalationRecipient === "admin" ? "Send the mock admin report for review." : wantsLearnerEmail ? "Preview and send the mock email if it looks correct." : "Review the recommendation and choose whether to draft an email.",
     riskLevel,
-    outcome: escalationRecipient === "admin" ? "admin_report" : refund ? "refund_review" : asksForEmail(prompt) ? "learner_email" : "resolved",
-    requiresEmail: asksForEmail(prompt) || escalationRecipient === "admin",
+    outcome: escalationRecipient === "admin" ? "admin_report" : refund ? "refund_review" : wantsLearnerEmail ? "learner_email" : "resolved",
+    requiresEmail: wantsLearnerEmail || escalationRecipient === "admin",
     escalationRecipient
   };
 }
@@ -323,7 +478,8 @@ function buildDirectFinanceInsight(
   payments: PaymentContext[],
   signals: ReturnType<typeof detectFinanceSignals>,
   analytics: ReturnType<typeof buildFinanceAnalytics>,
-  subscription: SubscriptionMetadata
+  subscription: SubscriptionMetadata,
+  intent: FinanceIntent = classifyFinanceIntentFallback(prompt).intent
 ): z.infer<typeof financeAgentSchema> | null {
   const lower = prompt.toLowerCase();
   const learner = findLearner(prompt, payments);
@@ -350,7 +506,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Trainer subscription guidance", "Checked current trainer subscription and available plans.", "Use Settings to upgrade, downgrade, renew, cancel, or fix a failed mock payment.", "low");
   }
 
-  if (/\b(financial status|finance status|payment health|business status|revenue status|overall status|how am i doing)\b/.test(lower)) {
+  if (intent === "financial_status" || /\b(financial status|finance status|payment health|business status|revenue status|overall status|how am i doing)\b/.test(lower)) {
     const strongest = analytics.highestRevenueCourse;
     const riskNote = signals.length
       ? `${signals.length} suspicious signal${signals.length === 1 ? "" : "s"} need review. Highest risk: ${signals[0].title}.`
@@ -360,7 +516,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Financial status summary", "Reviewed revenue, pending payments, refunds, failures, course strength, and risk signals.", "Use this summary to decide whether to follow up on payments, adjust pricing, or escalate suspicious activity.", signals.some((signal) => signal.riskLevel === "high") ? "high" : analytics.failedCount > 1 ? "medium" : "low");
   }
 
-  if (/\b(most expensive|highest price|highest priced|priciest|premium course)\b/.test(lower)) {
+  if (intent === "most_expensive_course" || /\b(most expensive|highest price|highest priced|priciest|premium course)\b/.test(lower)) {
     const target = analytics.mostExpensiveCourse;
     const message = target
       ? `Your most expensive course is ${target.courseTitle} at ${formatCurrency(target.price)}. It is positioned as a premium offer, with ${target.enrollmentCount} learner enrollment${target.enrollmentCount === 1 ? "" : "s"} and ${formatCurrency(target.revenue)} paid revenue so far. Recommendation: keep the premium price if learner demand stays steady; otherwise add a limited bonus before cutting the core price.`
@@ -376,7 +532,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Cheapest course", "Compared current trainer course prices.", target ? "Use this course as a low-friction starter offer or bundle it with a higher-priced course." : "Add course pricing and ask again.", "low");
   }
 
-  if (/\b(highest revenue|most revenue|top earning|best earning|strongest revenue|highest earning)\b/.test(lower)) {
+  if (intent === "course_revenue" || /\b(highest revenue|most revenue|top earning|best earning|strongest revenue|highest earning)\b/.test(lower)) {
     const target = analytics.highestRevenueCourse;
     const message = target
       ? `Your highest revenue course is ${target.courseTitle} with ${formatCurrency(target.revenue)} in paid revenue from ${target.paidCount} paid payment${target.paidCount === 1 ? "" : "s"}. This is your strongest finance signal. Next step: run a focused promotion or test a modest premium bundle around this course.`
@@ -384,7 +540,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Highest revenue course", "Compared paid revenue by course.", target ? "Use this course as the anchor for pricing and marketing decisions." : "Create demand before changing pricing.", "low");
   }
 
-  if (/\b(total revenue|overall revenue|how much.*earned|earned total|lifetime revenue)\b/.test(lower)) {
+  if (intent === "revenue_summary" || /\b(total revenue|overall revenue|how much.*earned|earned total|lifetime revenue)\b/.test(lower)) {
     return makeNoEmailReply(
       `Total paid revenue is ${formatCurrency(analytics.totalRevenue)} from ${analytics.paidCount} paid payments. Pending value is ${formatCurrency(analytics.pendingAmount)}, and failed payment value is ${formatCurrency(analytics.failedAmount)}.`,
       "Total revenue review",
@@ -402,21 +558,21 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Course revenue review", "Reviewed paid revenue by course.", target ? "Use pricing or promotion changes based on demand." : "Generate demand with AI Marketing before changing pricing.", "low");
   }
 
-  if (/\b(pending payments?|pending amount|awaiting payment|who.*pending)\b/.test(lower)) {
+  if (intent === "pending_payments" || /\b(pending payments?|pending amount|awaiting payment|who.*pending)\b/.test(lower)) {
     const message = analytics.pendingCount
       ? `You have ${analytics.pendingCount} pending payment${analytics.pendingCount === 1 ? "" : "s"} worth ${formatCurrency(analytics.pendingAmount)}. Most recent pending records: ${formatPaymentList(analytics.pendingPayments)}. Recommended next action: send a polite payment reminder or check whether the learner needs a different mock payment method.`
       : "You do not currently have pending payments in the local records. No reminder is needed right now.";
     return makeNoEmailReply(message, "Pending payment review", "Checked pending payment records.", analytics.pendingCount ? "Ask me to draft a learner reminder if you want a mock email." : "Keep monitoring new checkout attempts.", analytics.pendingCount > 2 ? "medium" : "low");
   }
 
-  if (/\b(failed payments?|failed amount|declined payments?|payment failures?)\b/.test(lower) && !asksForEmail(prompt)) {
+  if ((intent === "failed_payments" || /\b(failed payments?|failed amount|declined payments?|payment failures?)\b/.test(lower)) && !asksForEmail(prompt)) {
     const message = analytics.failedCount
       ? `You have ${analytics.failedCount} failed payment${analytics.failedCount === 1 ? "" : "s"} worth ${formatCurrency(analytics.failedAmount)}. Recent failures: ${formatPaymentList(analytics.failedPayments)}. Recommended next action: contact affected learners or ask them to update their mock payment method before retrying.`
       : "I do not see failed payments in the current trainer records.";
     return makeNoEmailReply(message, "Failed payment review", "Checked failed payment records.", analytics.failedCount ? "Ask me to email the learner if you want support wording." : "No failed-payment action is needed.", analytics.failedCount > 2 ? "medium" : "low");
   }
 
-  if (/\b(refund request|refund requests|refunds?|refunded|refund abuse)\b/.test(lower) && !asksForEmail(prompt)) {
+  if ((intent === "refund_issue" || /\b(refund request|refund requests|refunds?|refunded|refund abuse)\b/.test(lower)) && !asksForEmail(prompt)) {
     const riskLevel = lower.includes("abuse") || analytics.refundedCount > 2 ? "medium" : "low";
     const message = analytics.refundedCount
       ? `There are ${analytics.refundedCount} refunded payment${analytics.refundedCount === 1 ? "" : "s"} totaling ${formatCurrency(analytics.refundedAmount)}. Recent refunded records: ${formatPaymentList(analytics.refundedPayments)}. Recommendation: review whether the refund reason is learner support, duplicate payment, or possible abuse before approving any new refund.`
@@ -424,7 +580,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Refund review", "Checked refunded payment records and refund-risk wording.", analytics.refundedCount ? "Ask me to draft a refund review email if you want a learner-facing response." : "Ask the learner for receipt details first.", riskLevel);
   }
 
-  if (/\b(payment status|status for|has .* paid|learner payment|receipt confirmation|receipt)\b/.test(lower)) {
+  if (intent === "learner_purchase_lookup" || /\b(payment status|status for|has .* paid|learner payment|receipt confirmation|receipt)\b/.test(lower)) {
     const learnerPayments = learner ? payments.filter((payment) => payment.learnerEmail === learner.email) : payments.slice(0, 5);
     const latest = learnerPayments[0];
     const message = latest
@@ -433,7 +589,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Learner payment status", "Checked local payment records.", latest?.status === "FAILED" ? "Ask the learner to update their mock payment method or draft a payment-failed email." : "Keep the receipt number for support follow-up.", latest?.status === "FAILED" ? "medium" : "low");
   }
 
-  if (/\b(pricing|price recommendation|suggest price|raise price|discount suggestion|suggest discount|promotion)\b/.test(lower)) {
+  if (intent === "pricing_advice" || /\b(pricing|price recommendation|suggest price|raise price|discount suggestion|suggest discount|promotion)\b/.test(lower)) {
     const target = course ?? analytics.highestRevenueCourse;
     const lowDemand = analytics.courseSummaries.find((item) => item.paidCount === 0 || item.revenue < 80);
     const message = target && target.paidCount >= 2
@@ -444,7 +600,7 @@ function buildDirectFinanceInsight(
     return makeNoEmailReply(message, "Pricing recommendation", "Compared paid count and revenue signals.", "Apply changes manually in Courses; the agent does not change prices automatically.", "low");
   }
 
-  if (/\b(subscription|renewal|expired|plan|upgrade|cancel|failed payment|payment failed)\b/.test(lower)) {
+  if (intent === "subscription_status" || /\b(subscription|renewal|expired|plan|upgrade|cancel|failed payment|payment failed)\b/.test(lower)) {
     const plans = getPlansForRole("TRAINER");
     const targetPlan = lower.includes("business")
       ? plans.find((plan) => plan.name === "Trainer Business")
@@ -471,7 +627,7 @@ function buildDirectFinanceInsight(
     );
   }
 
-  if (/\b(fraud|suspicious|duplicate|double|multiple payment|failed payment|refund abuse|mismatch|suspicious timing)\b/.test(lower) && !asksForEmail(prompt)) {
+  if ((intent === "suspicious_transactions" || intent === "duplicate_payments" || /\b(fraud|suspicious|duplicate|double|multiple payment|failed payment|refund abuse|mismatch|suspicious timing)\b/.test(lower)) && !asksForEmail(prompt)) {
     const topSignal = signals[0];
     const riskLevel = topSignal?.riskLevel ?? (lower.includes("fraud") || lower.includes("suspicious") ? "high" : "medium");
     const message = topSignal
@@ -649,19 +805,36 @@ function detectFinanceSignals(payments: PaymentContext[]) {
 }
 
 function asksForEmail(prompt: string) {
-  return /\b(send|email|tell|notify|message)\b/i.test(prompt);
+  return /\b(send|email|tell|notify|message|write|contact)\b/i.test(prompt) || /\breach\s+out\b/i.test(prompt);
 }
 
 function asksForAdminReport(prompt: string) {
-  return /\b(admin|escalate|report)\b/i.test(prompt);
+  return /\b(admin|escalate|report|flag for review|risk review)\b/i.test(prompt);
 }
 
-function shouldPreferLocalAnalytics(prompt: string) {
-  if (asksForEmail(prompt) || asksForAdminReport(prompt)) {
+function shouldPreferLocalAnalytics(prompt: string, intent: FinanceIntent = classifyFinanceIntentFallback(prompt).intent) {
+  if (intent === "email_learner" || intent === "escalate_admin" || asksForEmail(prompt) || asksForAdminReport(prompt)) {
     return false;
   }
 
+  if (intent !== "general_finance_question") {
+    return true;
+  }
+
   return /\b(financial status|finance status|payment health|business status|revenue status|overall status|total revenue|overall revenue|how much.*earned|earned total|lifetime revenue|course revenue|revenue for|sold most|top course|best course|most expensive|highest price|highest priced|priciest|premium course|cheapest|lowest price|lowest priced|least expensive|entry price|highest revenue|most revenue|top earning|best earning|strongest revenue|pending payments?|pending amount|failed payments?|failed amount|declined payments?|refunds?|refunded|refund abuse|payment status|receipt confirmation|receipt|pricing|price recommendation|suggest price|raise price|discount suggestion|suggest discount|promotion|subscription|renewal|expired|plan|upgrade|fraud|suspicious|duplicate|double|multiple payment|mismatch|suspicious timing)\b/i.test(prompt);
+}
+
+function normalizePrompt(prompt: string) {
+  return prompt.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function hasAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
+
+function extractLearnerNameHint(prompt: string) {
+  const match = prompt.match(/\b(?:learner|student|to|email|notify|tell|message|contact|write|send|reach out to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  return match?.[1] ?? null;
 }
 
 function findLearner(prompt: string, payments: PaymentContext[]) {

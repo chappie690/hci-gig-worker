@@ -5,12 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { readLearnerUsage, useDemoSubscription, writeLearnerUsage } from "@/components/settings/subscription-access";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
 import { readLocalAICourses, type LocalAICourse } from "@/lib/local-ai-course-storage";
 import { findStoredProfileBranding, getDisplayLogo } from "@/lib/profile-branding";
-import { formatSubscriptionPrice, getLearnerPlanAccess, getPlansForRole } from "@/lib/subscriptions";
 
 export type PurchasableCourse = {
   id: string;
@@ -58,8 +56,6 @@ export function CoursePurchasePanel({
   const [message, setMessage] = useState("");
   const [purchasedIds, setPurchasedIds] = useState<string[]>([]);
   const [localAICourses, setLocalAICourses] = useState<LocalAICourse[]>([]);
-  const { subscription } = useDemoSubscription(learnerEmail, "LEARNER");
-  const learnerAccess = getLearnerPlanAccess(subscription.planName);
 
   useEffect(() => {
     function loadLocalState() {
@@ -141,13 +137,6 @@ export function CoursePurchasePanel({
     setLoading(true);
     setMessage("");
 
-    const limitMessage = learnerEnrollmentLimitMessage(subscription.planName, learnerAccess.courseLimit, learnerEmail);
-    if (limitMessage) {
-      setLoading(false);
-      setMessage(limitMessage);
-      return;
-    }
-
     if (!mockDetails.trim()) {
       setLoading(false);
       setMessage("Add the requested mock payment details before confirming.");
@@ -157,7 +146,6 @@ export function CoursePurchasePanel({
     if (selected.id.startsWith("stock-course-") || selected.id.startsWith("ai-local-")) {
       const receiptId = createLocalReceipt(selected, method);
       persistPurchase(selected.id);
-      incrementCourseUsage(learnerEmail);
       createLocalNotification(selected);
       setLoading(false);
       setMessage("Receipt sent to your email.");
@@ -186,7 +174,6 @@ export function CoursePurchasePanel({
     }
 
     persistPurchase(selected.id);
-    incrementCourseUsage(learnerEmail);
     const receiptId = createLocalReceipt(selected, method, data?.receiptNumber);
     setMessage("Receipt sent to your email.");
     router.refresh();
@@ -478,31 +465,4 @@ export function CoursePurchasePanel({
       ) : null}
     </>
   );
-}
-
-function learnerEnrollmentLimitMessage(planName: string, limit: number, learnerEmail: string) {
-  if (!Number.isFinite(limit) || limit > 999) {
-    return "";
-  }
-
-  if (limit <= 0) {
-    const upgrade = getPlansForRole("LEARNER").find((plan) => plan.name === "Starter Learner");
-    return `Course enrollment is locked on ${planName}. Upgrade to ${upgrade?.name ?? "Starter Learner"} at ${formatSubscriptionPrice(upgrade?.price ?? 19)} to enroll in courses.`;
-  }
-
-  const usage = readLearnerUsage(learnerEmail);
-  if (usage.courseEnrollments >= limit) {
-    const upgrade = getPlansForRole("LEARNER").find((plan) => plan.name === "Pro Learner");
-    return `You have used ${usage.courseEnrollments}/${limit} course enrollments this month on ${planName}. Upgrade to ${upgrade?.name ?? "Pro Learner"} at ${formatSubscriptionPrice(upgrade?.price ?? 49)} for unlimited access.`;
-  }
-
-  return "";
-}
-
-function incrementCourseUsage(learnerEmail: string) {
-  const usage = readLearnerUsage(learnerEmail);
-  writeLearnerUsage(learnerEmail, {
-    ...usage,
-    courseEnrollments: usage.courseEnrollments + 1
-  });
 }

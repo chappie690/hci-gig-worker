@@ -30,6 +30,8 @@ export type LearnerSubscriptionUsage = {
 };
 
 export type LearnerPlanAccess = {
+  canBrowseCourses: boolean;
+  canPurchaseCourses: boolean;
   courseLimit: number;
   chatbotLimit: number;
   certificates: boolean;
@@ -59,21 +61,21 @@ export const learnerSubscriptionPlans: SubscriptionPlan[] = [
     name: "Free Plan",
     price: 0,
     billingCycle: "month",
-    features: ["Browse courses", "Limited chatbot usage", "No certificates"]
+    features: ["Browse courses", "Buy individual courses", "Limited chatbot usage", "No certificates"]
   },
   {
     role: "LEARNER",
     name: "Starter Learner",
     price: 19,
     billingCycle: "month",
-    features: ["Access 3 courses/month", "Basic certificates", "Basic chatbot support"]
+    features: ["Buy individual courses", "Access 3 subscription courses/month", "Basic certificates", "Basic chatbot support"]
   },
   {
     role: "LEARNER",
     name: "Pro Learner",
     price: 49,
     billingCycle: "month",
-    features: ["Unlimited course access", "Certificates", "Full AI chatbot", "Priority session reminders"]
+    features: ["Buy individual courses", "Unlimited subscription course access", "Certificates", "Full AI chatbot", "Priority session reminders"]
   }
 ];
 
@@ -175,6 +177,8 @@ export function getStableSubscriptionDisplayStatus(subscription: SubscriptionMet
 export function getLearnerPlanAccess(planName: string): LearnerPlanAccess {
   if (planName === "Pro Learner") {
     return {
+      canBrowseCourses: true,
+      canPurchaseCourses: true,
       courseLimit: Number.POSITIVE_INFINITY,
       chatbotLimit: Number.POSITIVE_INFINITY,
       certificates: true,
@@ -185,6 +189,8 @@ export function getLearnerPlanAccess(planName: string): LearnerPlanAccess {
 
   if (planName === "Starter Learner") {
     return {
+      canBrowseCourses: true,
+      canPurchaseCourses: true,
       courseLimit: 3,
       chatbotLimit: 30,
       certificates: true,
@@ -194,12 +200,39 @@ export function getLearnerPlanAccess(planName: string): LearnerPlanAccess {
   }
 
   return {
+    canBrowseCourses: true,
+    canPurchaseCourses: true,
     courseLimit: 0,
     chatbotLimit: 5,
     certificates: false,
     priorityReminders: false,
     chatbotLevel: "Limited"
   };
+}
+
+export function canBrowseCourses() {
+  return true;
+}
+
+export function canPurchaseCourse() {
+  return true;
+}
+
+export function canAccessPurchasedCourse(_planName: string, purchased: boolean) {
+  return purchased;
+}
+
+export function canGetCertificate(planName: string) {
+  return getLearnerPlanAccess(planName).certificates;
+}
+
+export function canUseChatbot(planName: string, usageCount: number) {
+  const access = getLearnerPlanAccess(planName);
+  return !Number.isFinite(access.chatbotLimit) || usageCount < access.chatbotLimit;
+}
+
+export function hasPrioritySessionReminders(planName: string) {
+  return getLearnerPlanAccess(planName).priorityReminders;
 }
 
 export function getTrainerPlanAccess(planName: string): TrainerPlanAccess {
