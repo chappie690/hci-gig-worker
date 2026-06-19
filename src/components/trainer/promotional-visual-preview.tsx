@@ -8,11 +8,13 @@ import { type StoredSocialPost } from "@/lib/social-post-storage";
 export function PromotionalVisualPreview({
   post,
   className,
-  compact = false
+  compact = false,
+  sessionImageKey
 }: {
   post: StoredSocialPost;
   className?: string;
   compact?: boolean;
+  sessionImageKey?: string;
 }) {
   const [sessionImage, setSessionImage] = useState<string | null>(null);
   const imageUrl = sessionImage ?? (post.visual.promoImageUrl && !post.visual.promoImageUrl.startsWith("data:") ? post.visual.promoImageUrl : null);
@@ -20,14 +22,14 @@ export function PromotionalVisualPreview({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        setSessionImage(window.sessionStorage.getItem(getPromoImageSessionKey(post.id)));
+        setSessionImage(window.sessionStorage.getItem(sessionImageKey ?? getPromoImageSessionKey(post.id)));
       } catch {
         setSessionImage(null);
       }
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [post.id]);
+  }, [post.id, sessionImageKey]);
 
   if (imageUrl) {
     return (

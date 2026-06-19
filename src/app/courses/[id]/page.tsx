@@ -70,7 +70,7 @@ export default async function CourseDetailsPage({ params }: CourseDetailsPagePro
                 <Link href={`/courses/${course.id}/checkout`}>Enroll / Pay</Link>
               </Button>
               <Button asChild variant="secondary" className="w-full">
-                <Link href={chatbotHref}>Ask AI Chatbot</Link>
+                <Link href={chatbotHref}>Ask Pilot Pete</Link>
               </Button>
             </div>
             <div className="mt-5 rounded-lg bg-slate-50 p-4">
@@ -78,7 +78,7 @@ export default async function CourseDetailsPage({ params }: CourseDetailsPagePro
               <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                 <li>Short applied lessons</li>
                 <li>Trainer-led session support</li>
-                <li>AI chatbot course guidance</li>
+                <li>Pilot Pete course guidance</li>
                 <li>Payment receipt tracking</li>
               </ul>
             </div>

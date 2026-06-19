@@ -13,6 +13,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatCurrency } from "@/lib/format";
 import { MetricCard } from "@/components/ui/metric-card";
 import { DynamicGreeting } from "@/components/ui/dynamic-greeting";
+import { SubscriptionStatusCard } from "@/components/settings/subscription-access";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
@@ -37,11 +38,11 @@ export default async function DashboardPage() {
   return (
     <AppShell user={user} title="Dashboard" subtitle="Trainer workspace" activeHref="/trainer/dashboard">
       <div className="grid gap-5">
-        <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <DynamicGreeting
             userName={user.fullName}
             context="Your trainer cockpit is ready for learners, campaigns, sessions, and revenue work."
-            className="text-sm font-semibold text-ink/65"
+            className="text-sm font-semibold text-ink/65 dark:text-slate-300"
           />
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard className="min-h-36 transition hover:-translate-y-1 hover:shadow-xl motion-reduce:hover:translate-y-0" label="Revenue" value={String(data.metrics.revenue)} detail="Collected payments" />
@@ -51,13 +52,15 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        <SubscriptionStatusCard user={user} role="TRAINER" />
+
         <TrainerProfileSummary user={user} profile={profileSummary} />
 
         <section className="grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Revenue and learner mix</CardTitle>
-              <p className="text-sm text-ink/60">Compare paid revenue and enrolled learners by course. Hover the chart for exact values.</p>
+              <p className="text-sm text-ink/60 dark:text-slate-300">Compare paid revenue and enrolled learners by course. Hover the chart for exact values.</p>
             </CardHeader>
             <CardContent>
               <DashboardChart data={data.chart} />
@@ -80,7 +83,7 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="overflow-hidden rounded-lg border border-ink/10">
               <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-cloud text-ink/60">
+                <thead className="bg-cloud text-ink/60 dark:bg-slate-800 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Receipt</th>
                     <th className="px-4 py-3 font-semibold">Learner</th>
@@ -89,13 +92,13 @@ export default async function DashboardPage() {
                     <th className="px-4 py-3 font-semibold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink/10">
+                <tbody className="divide-y divide-ink/10 dark:divide-slate-700">
                   {data.recentPayments.map((payment) => (
                     <tr key={payment.id}>
-                      <td className="px-4 py-3 font-medium text-ink">{payment.receiptNumber}</td>
-                      <td className="px-4 py-3 text-ink/65">{payment.learnerName}</td>
-                      <td className="px-4 py-3 text-ink/65">{payment.courseTitle}</td>
-                      <td className="px-4 py-3 text-ink/65">{formatCurrency(payment.amount)}</td>
+                      <td className="px-4 py-3 font-medium text-ink dark:text-slate-100">{payment.receiptNumber}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{payment.learnerName}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{payment.courseTitle}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{formatCurrency(payment.amount)}</td>
                       <td className="px-4 py-3">
                         <Badge>{payment.status.toLowerCase()}</Badge>
                       </td>
@@ -114,12 +117,12 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="grid gap-3">
               {data.courses.map((course) => (
-                <div key={course.id} className="rounded-lg border border-ink/10 p-4">
+                <div key={course.id} className="rounded-lg border border-ink/10 p-4 dark:border-slate-700">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-semibold">{course.title}</p>
                     <Badge>{course.status.toLowerCase()}</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-ink/65">{course.description}</p>
+                  <p className="mt-2 text-sm text-ink/65 dark:text-slate-300">{course.description}</p>
                 </div>
               ))}
             </CardContent>
@@ -131,9 +134,9 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="grid gap-3">
               {data.learners.map((learner) => (
-                <div key={learner.id} className="rounded-lg border border-ink/10 p-4">
+                <div key={learner.id} className="rounded-lg border border-ink/10 p-4 dark:border-slate-700">
                   <p className="font-semibold">{learner.fullName}</p>
-                  <p className="text-sm text-ink/65">{learner.email}</p>
+                  <p className="text-sm text-ink/65 dark:text-slate-300">{learner.email}</p>
                   <p className="mt-2 text-sm text-moss">Enrolled learner</p>
                 </div>
               ))}
@@ -146,10 +149,10 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="grid gap-3">
               {data.sessions.map((session) => (
-                <div key={session.id} className="rounded-lg border border-ink/10 p-4">
+                <div key={session.id} className="rounded-lg border border-ink/10 p-4 dark:border-slate-700">
                   <p className="font-semibold">{session.title}</p>
-                  <p className="text-sm text-ink/65">{session.course.title}</p>
-                  <p className="text-sm text-ink/65">
+                  <p className="text-sm text-ink/65 dark:text-slate-300">{session.course.title}</p>
+                  <p className="text-sm text-ink/65 dark:text-slate-300">
                     {new Intl.DateTimeFormat("en", {
                       month: "short",
                       day: "numeric",

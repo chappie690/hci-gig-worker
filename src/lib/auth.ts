@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
 const cookieName = "skillpilot_session";
-const sessionDurationSeconds = 60 * 60 * 24 * 7;
+const sessionDurationSeconds = 60 * 60 * 24;
 
 export function getSessionSecret() {
   const secret = process.env.SESSION_SECRET ?? "development-only-skillpilot-secret-change-me";
@@ -34,7 +34,6 @@ export async function createSessionCookie(response: NextResponse, user: { id: st
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: sessionDurationSeconds,
     path: "/"
   });
 }

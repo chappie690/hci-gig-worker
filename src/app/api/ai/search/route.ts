@@ -22,7 +22,7 @@ const routeMap = [
   { title: "My Courses", href: "/learner/courses", keywords: ["my courses", "enrolled", "learn", "course"], reason: "Open enrolled courses and continue learning." },
   { title: "Discover Courses", href: "/learner/discover", keywords: ["browse", "discover", "catalog", "courses", "buy"], reason: "Browse purchasable courses and use mock checkout." },
   { title: "Learner Sessions", href: "/learner/sessions", keywords: ["calendar", "sessions", "training", "schedule"], reason: "View upcoming learner training sessions." },
-  { title: "AI Chatbot", href: "/learner/chatbot", keywords: ["chat", "chatbot", "ai help", "question"], reason: "Ask Pilot Pete course and platform questions." },
+  { title: "Pilot Pete", href: "/learner/chatbot", keywords: ["chat", "chatbot", "ai help", "question"], reason: "Ask Pilot Pete course and platform questions." },
   { title: "Trainer Dashboard", href: "/trainer/dashboard", keywords: ["trainer", "dashboard", "metrics", "revenue"], reason: "Review trainer metrics, revenue, learners, and milestones." },
   { title: "Trainer Courses", href: "/trainer/courses", keywords: ["course management", "publish", "courses"], reason: "Create, edit, publish, and manage trainer courses." },
   { title: "AI Marketing", href: "/trainer/ai-marketing", keywords: ["marketing", "campaign", "ad", "email", "hashtags", "seo"], reason: "Generate Groq-powered campaign copy and performance tips." },

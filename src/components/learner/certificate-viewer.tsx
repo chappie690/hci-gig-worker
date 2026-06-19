@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ProfileLogo } from "@/components/profile/profile-logo";
+import { useDemoSubscription } from "@/components/settings/subscription-access";
 import { Button } from "@/components/ui/button";
+import { formatSubscriptionPrice, getLearnerPlanAccess, getPlansForRole } from "@/lib/subscriptions";
 
 type QuizResult = {
   score: number;
@@ -38,7 +40,9 @@ export function CertificateViewer({
 }) {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [copy, setCopy] = useState<CertificateCopy>(() => fallbackCopy(course.title));
+  const { subscription } = useDemoSubscription(learner.email, "LEARNER");
   const passed = Boolean(quizResult && quizResult.score >= passingScore);
+  const certificateAccess = getLearnerPlanAccess(subscription.planName).certificates;
   const certificateId = quizResult?.certificateId ?? buildCertificateId(course.id);
   const completionDate = quizResult ? new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(new Date(quizResult.completedAt)) : "";
 
@@ -121,6 +125,27 @@ export function CertificateViewer({
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild>
             <Link href={`/learner/course-player/${course.id}`}>Retake quiz</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/learner/dashboard">Back to Dashboard</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!certificateAccess) {
+    const upgrade = getPlansForRole("LEARNER").find((plan) => plan.name === "Starter Learner");
+    return (
+      <section className="rounded-3xl border border-blue-100 bg-blue-50 p-8 text-center shadow-sm dark:border-blue-900/60 dark:bg-blue-950/30">
+        <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-200">Certificate locked by plan</p>
+        <h2 className="mt-3 text-3xl font-black text-blue-950 dark:text-blue-100">Certificates are not included on {subscription.planName}.</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-blue-900/75 dark:text-blue-100/75">
+          You passed with {quizResult.score}/{quizResult.total}, but certificate access requires {upgrade?.name ?? "Starter Learner"} at {formatSubscriptionPrice(upgrade?.price ?? 19)} or Pro Learner. No real billing occurs in this prototype.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button asChild>
+            <Link href="/learner/settings">Upgrade plan</Link>
           </Button>
           <Button asChild variant="secondary">
             <Link href="/learner/dashboard">Back to Dashboard</Link>

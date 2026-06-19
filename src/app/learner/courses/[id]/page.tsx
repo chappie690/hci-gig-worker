@@ -139,7 +139,7 @@ export default async function LearnerCoursePage({ params }: LearnerCoursePagePro
 
         <Card>
           <CardHeader>
-            <CardTitle>AI chatbot history</CardTitle>
+            <CardTitle>Pilot Pete history</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
             {course.chatMessages.map((message) => (

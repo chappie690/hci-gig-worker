@@ -3,10 +3,9 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RoleShell } from "@/components/layout/role-shell";
+import { LearnerCourseList } from "@/components/learner/learner-course-list";
 import { LocalEnrolledCourses } from "@/components/learner/local-enrolled-courses";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stockCourses } from "@/lib/stock-courses";
@@ -81,100 +80,20 @@ export default async function LearnerCoursesPage() {
       </section>
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
-        {enrollments.length ? (
-          enrollments.map((enrollment, index) => {
-            const course = enrollment.course;
-            const trainerName =
-              course?.trainer?.trainerProfile?.brandName ??
-              course?.trainer?.fullName ??
-              "SkillPilot Trainer";
-
-            const nextSession = course?.trainingSessions?.[0];
-
-            return (
-              <article
-                key={enrollment.id}
-                className="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl motion-reduce:hover:translate-y-0 dark:border-slate-700 dark:bg-slate-900"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <Badge
-                      className={
-                        enrollment.status === "COMPLETED"
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-                          : "dark:bg-slate-800 dark:text-slate-200"
-                      }
-                    >
-                      {enrollment.status.toLowerCase()}
-                    </Badge>
-
-                    <h3 className="mt-3 text-xl font-bold text-ink dark:text-slate-100">
-                      {course?.title ?? "Untitled course"}
-                    </h3>
-
-                    <p className="mt-1 text-sm text-ink/55 dark:text-slate-400">
-                      {trainerName}
-                    </p>
-                  </div>
-
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
-                    {nextStep(index, enrollment.progress)}
-                  </span>
-                </div>
-
-                <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/65 dark:text-slate-300">
-                  {course?.description ??
-                    "Continue your learning journey with this SkillPilot AI course."}
-                </p>
-
-                <Progress className="mt-5 h-3" value={enrollment.progress} />
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-ink/55 dark:text-slate-400">
-                    {enrollment.progress}% complete
-                  </p>
-
-                  <div className="flex flex-wrap gap-2">
-                    {enrollment.status === "COMPLETED" ? (
-                      <Button asChild variant="secondary">
-                        <Link href={`/learner/certificate/${enrollment.courseId}`}>
-                          View Certificate
-                        </Link>
-                      </Button>
-                    ) : null}
-
-                    <Button asChild>
-                      <Link href={`/learner/course-player/${enrollment.courseId}`}>
-                        Start / Do Course
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-
-                {nextSession ? (
-                  <p className="mt-4 rounded-lg bg-cloud px-3 py-2 text-sm text-ink/65 dark:bg-slate-800 dark:text-slate-300">
-                    Next live session: {formatDate(nextSession.startTime)}
-                  </p>
-                ) : null}
-              </article>
-            );
-          })
-        ) : (
-          <div className="rounded-2xl border border-ink/10 bg-white p-8 text-center shadow-sm lg:col-span-2 dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="text-xl font-bold text-ink dark:text-slate-100">
-              No enrolled courses yet
-            </h3>
-
-            <p className="mt-2 text-sm text-ink/60 dark:text-slate-300">
-              Browse the catalog and use the mock AI Payment Agent checkout to
-              add your first course.
-            </p>
-
-            <Button asChild className="mt-5">
-              <Link href="/learner/discover">Discover courses</Link>
-            </Button>
-          </div>
-        )}
+        <LearnerCourseList
+          enrollments={enrollments.map((enrollment) => ({
+            id: enrollment.id,
+            courseId: enrollment.courseId,
+            status: enrollment.status,
+            progress: enrollment.progress,
+            course: {
+              title: enrollment.course?.title ?? "Untitled course",
+              description: enrollment.course?.description ?? "Continue your learning journey with this SkillPilot AI course.",
+              trainerName: enrollment.course?.trainer?.trainerProfile?.brandName ?? enrollment.course?.trainer?.fullName ?? "SkillPilot Trainer",
+              nextSession: enrollment.course?.trainingSessions?.[0]?.startTime ? new Date(enrollment.course.trainingSessions[0].startTime).toISOString() : null
+            }
+          }))}
+        />
 
         <LocalEnrolledCourses stockCourses={stockCourses} />
       </section>
@@ -210,23 +129,4 @@ async function getSafeEnrollments(learnerId: string): Promise<SafeEnrollment[]> 
 
     return [];
   }
-}
-
-function nextStep(index: number, progress: number) {
-  if (progress >= 100) {
-    return "Review mode";
-  }
-
-  return ["Next lesson: 8 mins", "15 mins left", "Quiz review: 10 mins"][
-    index % 3
-  ];
-}
-
-function formatDate(date: Date | string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(date));
 }

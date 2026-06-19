@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { RoleShell } from "@/components/layout/role-shell";
 import { HFLogoGenerator } from "@/components/settings/hf-logo-generator";
 import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
+import { ResetPasswordCard } from "@/components/settings/reset-password-card";
+import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel";
 import { getCurrentUser } from "@/lib/auth";
 
 export default async function LearnerSettingsPage() {
@@ -26,7 +28,15 @@ export default async function LearnerSettingsPage() {
       </section>
 
       <div className="mt-5">
+        <ResetPasswordCard userEmail={user.email} />
+      </div>
+
+      <div className="mt-5">
         <HFLogoGenerator user={user} roleLabel="Learner" />
+      </div>
+
+      <div className="mt-5">
+        <SubscriptionPlansPanel user={user} role="LEARNER" />
       </div>
     </RoleShell>
   );

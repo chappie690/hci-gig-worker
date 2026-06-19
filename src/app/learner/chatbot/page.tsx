@@ -31,7 +31,7 @@ export default async function LearnerChatbotPage() {
   }));
 
   return (
-    <RoleShell user={user} label="Learner workspace" title="AI Chatbot" activeHref="/learner/chatbot">
+    <RoleShell user={user} label="Learner workspace" title="Pilot Pete" activeHref="/learner/chatbot">
       <ChatbotPanel
         learner={user}
         courses={courses}

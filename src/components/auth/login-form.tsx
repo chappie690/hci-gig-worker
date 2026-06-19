@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -43,27 +44,10 @@ export function LoginForm() {
     <form className="grid gap-4" onSubmit={onSubmit}>
       <Input label="Email" name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
       <Input label="Password" name="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-      <div className="grid gap-2 rounded-lg border border-ink/10 bg-cloud p-3 dark:border-slate-700 dark:bg-slate-900">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink/45">Demo accounts</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["Trainer", "trainer@skillpilot.ai"],
-            ["Learner", "learner@skillpilot.ai"],
-            ["Admin", "admin@skillpilot.ai"]
-          ].map(([label, demoEmail]) => (
-            <button
-              key={demoEmail}
-              type="button"
-              className="rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-bold text-ink transition hover:bg-limewash focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
-              onClick={() => {
-                setEmail(demoEmail);
-                setPassword("password123");
-              }}
-            >
-              Use {label}
-            </button>
-          ))}
-        </div>
+      <div className="-mt-2 text-right">
+        <Link className="text-sm font-semibold text-moss transition hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 dark:text-emerald-300 dark:hover:text-white" href="/forgot-password">
+          Forgot password?
+        </Link>
       </div>
       {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-200">{error}</p> : null}
       <Button type="submit" disabled={loading}>

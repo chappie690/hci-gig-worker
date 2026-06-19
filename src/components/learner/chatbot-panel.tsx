@@ -64,6 +64,7 @@ export function ChatbotPanel({
       navigationTargets={learnerTargets}
       styleStorageKey={styleStorageKey}
       onStyleSaved={saveLearnerStyleReward}
+      enablePaymentAgentActions
     />
   );
 }

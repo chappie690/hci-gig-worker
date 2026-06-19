@@ -1,13 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileLogo } from "@/components/profile/profile-logo";
+import { useDemoSubscription } from "@/components/settings/subscription-access";
 import { AICourseBuilder } from "@/components/trainer/ai-course-builder";
 import { formatCurrency } from "@/lib/format";
+import { readLocalAICourses, type LocalAICourse } from "@/lib/local-ai-course-storage";
+import { formatSubscriptionPrice, getTrainerPlanAccess, getPlansForRole } from "@/lib/subscriptions";
 
 type Learner = {
   id: string;
@@ -73,9 +76,33 @@ export function CourseManager({ courses, trainer }: { courses: Course[]; trainer
   const [deleteCourse, setDeleteCourse] = useState<Course | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [localCourses, setLocalCourses] = useState<LocalAICourse[]>([]);
+  const { subscription } = useDemoSubscription(trainer.email, "TRAINER");
+  const trainerAccess = getTrainerPlanAccess(subscription.planName);
+  const publishedCount = courses.filter((course) => course.status === "PUBLISHED").length + localCourses.filter((course) => course.status === "PUBLISHED").length;
+
+  useEffect(() => {
+    function loadLocalCourses() {
+      setLocalCourses(readLocalAICourses());
+    }
+
+    const frame = window.requestAnimationFrame(loadLocalCourses);
+    window.addEventListener("storage", loadLocalCourses);
+    window.addEventListener("skillpilot-local-ai-courses-updated", loadLocalCourses);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("storage", loadLocalCourses);
+      window.removeEventListener("skillpilot-local-ai-courses-updated", loadLocalCourses);
+    };
+  }, []);
 
   async function createCourse(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (createForm.status === "PUBLISHED" && isPublishLimitReached(subscription.planName, publishedCount, trainerAccess.coursePublishLimit)) {
+      setMessage({ type: "error", text: publishLimitMessage(subscription.planName, trainerAccess.coursePublishLimit) });
+      return;
+    }
     await submitJson("/api/trainer/courses", "POST", formToPayload(createForm), () => {
       setCreateForm(emptyForm);
       setMessage({ type: "success", text: "Course created." });
@@ -93,6 +120,10 @@ export function CourseManager({ courses, trainer }: { courses: Course[]; trainer
   }
 
   async function setStatus(course: Course, status: "DRAFT" | "PUBLISHED") {
+    if (status === "PUBLISHED" && isPublishLimitReached(subscription.planName, publishedCount, trainerAccess.coursePublishLimit)) {
+      setMessage({ type: "error", text: publishLimitMessage(subscription.planName, trainerAccess.coursePublishLimit) });
+      return;
+    }
     await submitJson(`/api/trainer/courses/${course.id}`, "PATCH", { status }, () => {
       setMessage({ type: "success", text: status === "PUBLISHED" ? "Course published." : "Course unpublished." });
       router.refresh();
@@ -165,7 +196,56 @@ export function CourseManager({ courses, trainer }: { courses: Course[]; trainer
         </div>
       ) : null}
 
-      <AICourseBuilder />
+      {trainerAccess.aiMarketing ? (
+        <AICourseBuilder trainer={trainer} />
+      ) : (
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">AI course builder locked</p>
+            <h2 className="mt-2 text-xl font-black text-ink dark:text-slate-100">Create with AI is available in Trainer Pro.</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/65 dark:text-slate-300">
+              You are currently on {subscription.planName}. Upgrade to Trainer Pro at $79/month to unlock AI-assisted course publishing.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {localCourses.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Local AI-published demo courses</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm leading-6 text-ink/60 dark:text-slate-300">
+              These lightweight courses were saved in this browser because database publishing was unavailable. They also appear in learner Discover on this device.
+            </p>
+            {localCourses.map((course) => (
+              <article key={course.id} className="rounded-2xl border border-ink/10 bg-cloud p-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-black text-ink dark:text-slate-100">{course.title}</h3>
+                      <Badge>local published</Badge>
+                    </div>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/65 dark:text-slate-300">{course.description}</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{course.category}</span>
+                      <span className="rounded-full bg-purple-50 px-3 py-1 text-purple-700">{course.level}</span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{course.duration}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-black text-ink dark:text-slate-100">{formatCurrency(discountedPrice(course.price, course.discountActive ? course.discountPercent : null))}</p>
+                    {course.discountActive && course.discountPercent ? (
+                      <p className="mt-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">{course.discountLabel || `${course.discountPercent}% OFF`}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -426,4 +506,13 @@ function formToPayload(form: CourseFormState) {
 
 function discountedPrice(price: number, percent?: number | null) {
   return Math.max(0, Math.round(price - price * Math.min(100, Math.max(0, percent ?? 0)) / 100));
+}
+
+function isPublishLimitReached(planName: string, publishedCount: number, limit: number) {
+  return planName !== "Trainer Business" && Number.isFinite(limit) && publishedCount >= limit;
+}
+
+function publishLimitMessage(planName: string, limit: number) {
+  const upgrade = getPlansForRole("TRAINER").find((plan) => plan.name === (planName === "Free Trainer" ? "Trainer Pro" : "Trainer Business"));
+  return `Course publishing limit reached on ${planName} (${limit} published courses). Upgrade to ${upgrade?.name ?? "Trainer Business"} at ${formatSubscriptionPrice(upgrade?.price ?? 149)} to publish more courses.`;
 }

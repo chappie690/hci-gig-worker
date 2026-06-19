@@ -3,12 +3,13 @@ import { z } from "zod";
 import { createSessionCookie, getRoleDashboardPath } from "@/lib/auth";
 import { handleRouteError, ValidationError } from "@/lib/errors";
 import { hashPassword } from "@/lib/password";
+import { isStrongPassword, strongPasswordMessage } from "@/lib/password-rules";
 import { prisma } from "@/lib/prisma";
 
 const registerSchema = z.object({
   fullName: z.string({ required_error: "Full name is required." }).trim().min(2, "Full name is required."),
   email: z.string({ required_error: "Email is required." }).trim().email("Enter a valid email address."),
-  password: z.string({ required_error: "Password is required." }).min(8, "Password must be at least 8 characters."),
+  password: z.string({ required_error: "Password is required." }).refine(isStrongPassword, strongPasswordMessage()),
   role: z.enum(["LEARNER", "TRAINER"], {
     required_error: "Choose Learner or Trainer."
   })

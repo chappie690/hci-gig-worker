@@ -30,7 +30,7 @@ export default async function TrainerAIChatbotPage() {
   ]);
 
   return (
-    <AppShell user={user} title="AI Chatbot" subtitle="Trainer workspace" activeHref="/trainer/ai-chatbot">
+    <AppShell user={user} title="Pilot Pete" subtitle="Trainer workspace" activeHref="/trainer/ai-chatbot">
       <TrainerChatbotPanel
         trainer={user}
         courses={courses}

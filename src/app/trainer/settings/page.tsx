@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageSection } from "@/components/ui/page-section";
 import { HFLogoGenerator } from "@/components/settings/hf-logo-generator";
 import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
+import { ResetPasswordCard } from "@/components/settings/reset-password-card";
+import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel";
 import { TrainerPortfolioBuilder } from "@/components/trainer/trainer-portfolio-builder";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -46,8 +48,10 @@ export default async function TrainerSettingsPage() {
         </Card>
       </section>
       <div className="mt-5 grid gap-5">
+        <ResetPasswordCard userEmail={user.email} />
         <TrainerPortfolioBuilder user={user} initialProfile={initialProfile} />
         <HFLogoGenerator user={user} roleLabel="Trainer" />
+        <SubscriptionPlansPanel user={user} role="TRAINER" />
       </div>
     </AppShell>
   );

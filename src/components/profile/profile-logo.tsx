@@ -81,11 +81,11 @@ export function ProfileIdentity({
   const tagline = branding.tagline;
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 max-w-full items-center gap-3 overflow-hidden">
       <ProfileLogo user={user} className={logoClassName} label={`${name} active logo`} />
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-ink">{name}</p>
-        {tagline ? <p className="truncate text-xs text-ink/55">{tagline}</p> : <p className="truncate text-xs text-ink/55">{email}</p>}
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <p className="truncate text-sm font-bold text-ink dark:text-slate-100">{name}</p>
+        {tagline ? <p className="truncate text-xs text-ink/55 dark:text-slate-300">{tagline}</p> : <p className="truncate text-xs text-ink/55 dark:text-slate-300">{email}</p>}
       </div>
     </div>
   );

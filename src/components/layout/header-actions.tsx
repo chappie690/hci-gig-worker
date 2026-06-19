@@ -20,12 +20,14 @@ export function HeaderActions({
   user,
   dashboardHref,
   showSearch = true,
-  showLogout = true
+  showLogout = true,
+  showProfile = true
 }: {
   user?: User | null;
   dashboardHref?: string;
   showSearch?: boolean;
   showLogout?: boolean;
+  showProfile?: boolean;
 }) {
   const [override, setOverride] = useState<ProfileBrandingOverride>({});
 
@@ -69,19 +71,21 @@ export function HeaderActions({
       {user ? (
         <>
           <NotificationBell role={user.role} />
-          <div className="hidden min-w-0 items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex">
-            <Avatar initials={initials} avatarUrl={display.avatarUrl} />
-            <div className="min-w-0 text-right">
-              <p className="truncate text-sm font-semibold text-ink dark:text-slate-100">{display.fullName}</p>
-              <p className="truncate text-xs text-ink/55 dark:text-slate-300">{display.tagline || display.email}</p>
+          {showProfile ? (
+            <div className="flex min-w-0 max-w-[220px] items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <Avatar initials={initials} avatarUrl={display.avatarUrl} />
+              <div className="min-w-0 text-right">
+                <p className="truncate text-sm font-semibold text-ink dark:text-slate-100">{display.fullName}</p>
+                <p className="truncate text-xs text-ink/55 dark:text-slate-300">{display.tagline || display.email}</p>
+              </div>
             </div>
-          </div>
+          ) : null}
           {dashboardHref ? (
             <Link className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-950 transition hover:scale-[1.02] hover:bg-cyan-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-100 motion-reduce:hover:scale-100" href={dashboardHref}>
               Go to Dashboard
             </Link>
           ) : null}
-          {showLogout ? <LogoutButton /> : null}
+          {showLogout && user.role !== "TRAINER" ? <LogoutButton /> : null}
         </>
       ) : null}
     </div>

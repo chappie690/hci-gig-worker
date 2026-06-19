@@ -36,7 +36,7 @@ export function RoleShell({
             <p className="mt-2 text-sm text-ink/55 dark:text-slate-300">{label}</p>
             <h1 className="text-2xl font-bold text-ink dark:text-slate-100">{title}</h1>
           </div>
-          <HeaderActions user={user} />
+          <HeaderActions user={user} showLogout={false} showProfile={false} />
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-6 py-6">{children}</div>

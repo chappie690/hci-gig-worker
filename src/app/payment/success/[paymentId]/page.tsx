@@ -66,7 +66,7 @@ export default async function PaymentSuccessPage({ params }: PaymentSuccessPageP
               />
               <p className="text-sm font-semibold text-slate-950">{payment.course.trainer.trainerProfile?.brandName ?? payment.course.trainer.fullName}</p>
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Open your learner dashboard to track course progress, upcoming sessions, notifications, and AI chatbot support.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Open your learner dashboard to track course progress, upcoming sessions, notifications, and Pilot Pete support.</p>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">

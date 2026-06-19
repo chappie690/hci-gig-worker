@@ -135,8 +135,8 @@ export function LearnerSocialAutomation({
   }
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-      <div className="rounded-3xl border border-ink/10 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+    <section className="isolate grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+      <div className="overflow-visible rounded-3xl border border-ink/10 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-950">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-moss">Learner Social Automation</p>
         <h2 className="mt-2 text-2xl font-black text-ink dark:text-slate-100">Share progress and portfolio wins</h2>
         <p className="mt-3 text-sm leading-6 text-ink/65 dark:text-slate-300">
@@ -152,7 +152,7 @@ export function LearnerSocialAutomation({
               onChange={(event) => setPrompt(event.target.value)}
             />
           </label>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="relative z-20 grid min-w-0 gap-4 lg:grid-cols-[0.7fr_1.6fr_0.8fr]">
             <Select label="Platform" value={platform} options={platforms} onChange={(value) => setPlatform(value as LearnerSocialPlatform)} />
             <Select label="Course context" value={courseId} options={[{ label: "General portfolio update", value: "" }, ...courses.map((course) => ({ label: course.title, value: course.id }))]} onChange={setCourseId} />
             <Select label="Tone" value={tone} options={["Professional", "Friendly", "Motivational", "Confident"]} onChange={setTone} />
@@ -178,7 +178,7 @@ export function LearnerSocialAutomation({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-ink/10 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+      <div className="relative z-0 rounded-3xl border border-ink/10 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-950">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-moss">{platform} preview</p>
@@ -233,10 +233,10 @@ function LearnerVisual({ platform, result }: { platform: LearnerSocialPlatform; 
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: Array<string | { label: string; value: string }>; onChange: (value: string) => void }) {
   return (
-    <label className="grid gap-2 text-sm font-semibold text-ink dark:text-slate-100">
+    <label className="relative z-20 grid min-w-0 gap-2 text-sm font-semibold text-ink dark:text-slate-100">
       {label}
       <select
-        className="min-h-11 rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-limewash dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-950"
+        className="relative z-20 min-h-11 w-full min-w-0 rounded-xl border border-ink/15 bg-white px-3 py-2 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-limewash dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-950"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

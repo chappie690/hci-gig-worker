@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PaymentAgentCharts } from "@/components/payments/payment-agent-charts";
+import { TrainerPaymentAgentChatbot } from "@/components/payments/trainer-payment-agent-chatbot";
+import { SubscriptionStatusCard, TrainerFeatureGate } from "@/components/settings/subscription-access";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSection } from "@/components/ui/page-section";
@@ -48,89 +50,101 @@ export default async function TrainerPaymentAgentPage() {
         description="The Payment Agent does not move real money. It assists with recommendation, verification, monitoring, and revenue tracking from local database records."
       />
 
-      <section className="mb-6 grid gap-4 md:grid-cols-5">
-        <Metric label="Total revenue" value={formatCurrency(totalRevenue)} />
-        <Metric label="Paid" value={statusCount("PAID")} />
-        <Metric label="Pending" value={statusCount("PENDING")} />
-        <Metric label="Failed" value={statusCount("FAILED")} />
-        <Metric label="Refunded" value={statusCount("REFUNDED")} />
-      </section>
+      <div className="mb-6">
+        <SubscriptionStatusCard user={user} role="TRAINER" />
+      </div>
 
-      <PaymentAgentCharts revenue={courseRevenue} statuses={statusData} />
+      <TrainerFeatureGate user={user} feature="Payment Agent support" minimumPlan="Trainer Pro">
+        <section className="mb-6 grid gap-4 md:grid-cols-5">
+          <Metric label="Total revenue" value={formatCurrency(totalRevenue)} />
+          <Metric label="Paid" value={statusCount("PAID")} />
+          <Metric label="Pending" value={statusCount("PENDING")} />
+          <Metric label="Failed" value={statusCount("FAILED")} />
+          <Metric label="Refunded" value={statusCount("REFUNDED")} />
+        </section>
 
-      <section className="mt-6 grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>AI pricing and discount recommendations</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {recommendations.map((recommendation) => (
-              <div key={recommendation.courseId} className="rounded-lg border border-ink/10 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="font-semibold text-ink">{recommendation.courseTitle}</p>
-                  <Badge className={recommendation.type === "raise" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}>{recommendation.type === "raise" ? "price" : "discount"}</Badge>
+        <PaymentAgentCharts revenue={courseRevenue} statuses={statusData} />
+
+        <div className="mt-6">
+          <TrainerPaymentAgentChatbot trainer={{ fullName: user.fullName, email: user.email }} />
+        </div>
+
+        <section className="mt-6 grid gap-5 xl:grid-cols-[1fr_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI pricing and discount recommendations</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {recommendations.map((recommendation) => (
+                <div key={recommendation.courseId} className="rounded-lg border border-ink/10 p-4 dark:border-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-ink dark:text-slate-100">{recommendation.courseTitle}</p>
+                    <Badge className={recommendation.type === "raise" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}>{recommendation.type === "raise" ? "price" : "discount"}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-ink/65 dark:text-slate-300">{recommendation.message}</p>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-ink/65">{recommendation.message}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              ))}
+            </CardContent>
+          </Card>
 
-        <Card>
+          <TrainerFeatureGate user={user} feature="Fraud detection" minimumPlan="Trainer Business">
+            <Card>
+              <CardHeader>
+                <CardTitle>Fraud and suspicious transaction indicators</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {suspicious.length ? (
+                  suspicious.map((item) => (
+                    <div key={item.key} className="rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-900/70 dark:bg-red-950/30">
+                      <p className="font-semibold text-red-800 dark:text-red-100">{item.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-red-700 dark:text-red-200">{item.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/30">
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-100">No major suspicious signals</p>
+                    <p className="mt-2 text-sm leading-6 text-emerald-700 dark:text-emerald-200">The current local records do not show repeated failures, unusual amounts, or repeated attempts beyond the configured thresholds.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TrainerFeatureGate>
+        </section>
+
+        <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Fraud and suspicious transaction indicators</CardTitle>
+            <CardTitle>Recent transactions</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            {suspicious.length ? (
-              suspicious.map((item) => (
-                <div key={item.key} className="rounded-lg border border-red-100 bg-red-50 p-4">
-                  <p className="font-semibold text-red-800">{item.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-red-700">{item.message}</p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
-                <p className="font-semibold text-emerald-800">No major suspicious signals</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-700">The current local records do not show repeated failures, unusual amounts, or repeated attempts beyond the configured thresholds.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Recent transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-lg border border-ink/10">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-cloud text-ink/60">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Receipt</th>
-                  <th className="px-4 py-3 font-semibold">Learner</th>
-                  <th className="px-4 py-3 font-semibold">Course</th>
-                  <th className="px-4 py-3 font-semibold">Amount</th>
-                  <th className="px-4 py-3 font-semibold">Method</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink/10">
-                {payments.slice(0, 10).map((payment) => (
-                  <tr key={payment.id}>
-                    <td className="px-4 py-3 font-medium text-ink">{payment.receiptNumber}</td>
-                    <td className="px-4 py-3 text-ink/65">{payment.learner.fullName}</td>
-                    <td className="px-4 py-3 text-ink/65">{payment.course.title}</td>
-                    <td className="px-4 py-3 text-ink/65">{formatCurrency(payment.amount)}</td>
-                    <td className="px-4 py-3 text-ink/65">{payment.paymentMethod}</td>
-                    <td className="px-4 py-3"><Badge>{payment.status.toLowerCase()}</Badge></td>
+          <CardContent>
+            <div className="overflow-hidden rounded-lg border border-ink/10 dark:border-slate-700">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="bg-cloud text-ink/60 dark:bg-slate-950 dark:text-slate-300">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Receipt</th>
+                    <th className="px-4 py-3 font-semibold">Learner</th>
+                    <th className="px-4 py-3 font-semibold">Course</th>
+                    <th className="px-4 py-3 font-semibold">Amount</th>
+                    <th className="px-4 py-3 font-semibold">Method</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody className="divide-y divide-ink/10 dark:divide-slate-700">
+                  {payments.slice(0, 10).map((payment) => (
+                    <tr key={payment.id}>
+                      <td className="px-4 py-3 font-medium text-ink dark:text-slate-100">{payment.receiptNumber}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{payment.learner.fullName}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{payment.course.title}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{formatCurrency(payment.amount)}</td>
+                      <td className="px-4 py-3 text-ink/65 dark:text-slate-300">{payment.paymentMethod}</td>
+                      <td className="px-4 py-3"><Badge>{payment.status.toLowerCase()}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </TrainerFeatureGate>
     </AppShell>
   );
 }
@@ -139,8 +153,8 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <p className="text-sm text-ink/55">{label}</p>
-        <p className="mt-2 text-2xl font-bold text-ink">{value}</p>
+        <p className="text-sm text-ink/55 dark:text-slate-300">{label}</p>
+        <p className="mt-2 text-2xl font-bold text-ink dark:text-slate-100">{value}</p>
       </CardContent>
     </Card>
   );

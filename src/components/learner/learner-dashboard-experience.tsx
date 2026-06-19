@@ -12,6 +12,7 @@ import { DynamicGreeting } from "@/components/ui/dynamic-greeting";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ProfileLogo, useProfileBranding } from "@/components/profile/profile-logo";
+import { SubscriptionStatusCard } from "@/components/settings/subscription-access";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
 
@@ -249,6 +250,8 @@ export function LearnerDashboardExperience({
           <DashboardMetric icon="!" label="Unread Alerts" value={String(unread)} detail="Need attention" />
         </div>
       </section>
+
+      <SubscriptionStatusCard user={{ email: userEmail }} role="LEARNER" />
 
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <XpPanel game={game} tier={tier.name} tierProgress={tierProgress} xpFeedback={xpFeedback} />

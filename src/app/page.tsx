@@ -39,11 +39,10 @@ const homepageCourses = stockCourses.slice(0, 12);
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const dashboardHref = user ? getRoleDashboardPath(user.role) : "/learner/dashboard";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
-      <PublicHeader user={user} dashboardHref={dashboardHref} />
+      <PublicHeader user={user} />
 
       <section className="relative border-b border-white/10 bg-[linear-gradient(135deg,#0f172a,#1e3a8a_48%,#6d28d9)]">
         <div aria-hidden="true" className="skillpilot-glow-pulse absolute left-[-120px] top-20 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />
@@ -61,23 +60,15 @@ export default async function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              {user ? (
-                <CelebrationButton href={dashboardHref} intensity="milestone" ariaLabel="Go to your SkillPilot dashboard">
-                  Go to Dashboard
-                </CelebrationButton>
-              ) : (
-                <CelebrationButton href="/register" intensity="milestone" ariaLabel="Register as a trainer">
-                  Register as Trainer
-                </CelebrationButton>
-              )}
+              <CelebrationButton href="/register" intensity="milestone" ariaLabel="Register as a trainer">
+                Register as Trainer
+              </CelebrationButton>
               <GlowButton href="/courses" ariaLabel="Browse SkillPilot courses">
                 Browse Courses
               </GlowButton>
-              {!user ? (
-                <GhostButton href="/login" ariaLabel="Login to SkillPilot AI">
-                  Login
-                </GhostButton>
-              ) : null}
+              <GhostButton href="/login" ariaLabel="Login to SkillPilot AI">
+                Login
+              </GhostButton>
             </div>
 
             <form className="mt-8 grid gap-3 rounded-2xl border border-white/15 bg-white/12 p-3 shadow-2xl shadow-slate-950/20 backdrop-blur md:grid-cols-[1fr_auto]" action="/courses">
@@ -213,13 +204,9 @@ export default async function HomePage() {
   );
 }
 
-function PublicHeader({
-  user,
-  dashboardHref
-}: {
-  user: Awaited<ReturnType<typeof getCurrentUser>>;
-  dashboardHref: string;
-}) {
+function PublicHeader({ user }: { user: Awaited<ReturnType<typeof getCurrentUser>> }) {
+  const dashboardHref = user ? getRoleDashboardPath(user.role) : undefined;
+
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/90 px-6 py-4 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">

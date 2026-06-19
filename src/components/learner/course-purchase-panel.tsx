@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { readLearnerUsage, useDemoSubscription, writeLearnerUsage } from "@/components/settings/subscription-access";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
+import { readLocalAICourses, type LocalAICourse } from "@/lib/local-ai-course-storage";
 import { findStoredProfileBranding, getDisplayLogo } from "@/lib/profile-branding";
+import { formatSubscriptionPrice, getLearnerPlanAccess, getPlansForRole } from "@/lib/subscriptions";
 
 export type PurchasableCourse = {
   id: string;
@@ -54,30 +57,66 @@ export function CoursePurchasePanel({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [purchasedIds, setPurchasedIds] = useState<string[]>([]);
+  const [localAICourses, setLocalAICourses] = useState<LocalAICourse[]>([]);
+  const { subscription } = useDemoSubscription(learnerEmail, "LEARNER");
+  const learnerAccess = getLearnerPlanAccess(subscription.planName);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    function loadLocalState() {
       const stored = window.localStorage.getItem(purchasedStorageKey);
 
-      if (!stored) {
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setPurchasedIds(parsed.filter((value) => typeof value === "string"));
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setPurchasedIds(parsed.filter((value) => typeof value === "string"));
+          }
+        } catch {
+          window.localStorage.removeItem(purchasedStorageKey);
         }
-      } catch {
-        window.localStorage.removeItem(purchasedStorageKey);
       }
-    }, 0);
 
-    return () => window.clearTimeout(timer);
+      setLocalAICourses(readLocalAICourses());
+    }
+
+    const frame = window.requestAnimationFrame(loadLocalState);
+    window.addEventListener("storage", loadLocalState);
+    window.addEventListener("skillpilot-local-ai-courses-updated", loadLocalState);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("storage", loadLocalState);
+      window.removeEventListener("skillpilot-local-ai-courses-updated", loadLocalState);
+    };
   }, []);
 
   const selectedPurchased = useMemo(() => (selected ? purchasedIds.includes(selected.id) || selected.enrolled : false), [purchasedIds, selected]);
   const previewPurchased = useMemo(() => (preview ? purchasedIds.includes(preview.id) || preview.enrolled : false), [purchasedIds, preview]);
+  const allCourses = useMemo(() => {
+    const local: PurchasableCourse[] = localAICourses.map((course) => {
+      const discountAmount = course.discountActive && course.discountPercent ? Math.round(course.price * Math.min(100, Math.max(0, course.discountPercent)) / 100) : 0;
+      return {
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        trainerName: course.trainerName,
+        trainerEmail: course.trainerEmail,
+        category: course.category,
+        level: course.level,
+        duration: course.duration,
+        rating: "4.8",
+        topic: course.category,
+        originalAmount: course.price,
+        discountLabel: course.discountLabel ?? "AI Draft Deal",
+        discountAmount,
+        finalAmount: Math.max(0, course.price - discountAmount),
+        enrolled: false
+      };
+    });
+
+    const seen = new Set(courses.map((course) => course.id));
+    return [...local.filter((course) => !seen.has(course.id)), ...courses];
+  }, [courses, localAICourses]);
 
   function openCheckout(course: PurchasableCourse) {
     setPreview(null);
@@ -102,15 +141,23 @@ export function CoursePurchasePanel({
     setLoading(true);
     setMessage("");
 
+    const limitMessage = learnerEnrollmentLimitMessage(subscription.planName, learnerAccess.courseLimit, learnerEmail);
+    if (limitMessage) {
+      setLoading(false);
+      setMessage(limitMessage);
+      return;
+    }
+
     if (!mockDetails.trim()) {
       setLoading(false);
       setMessage("Add the requested mock payment details before confirming.");
       return;
     }
 
-    if (selected.id.startsWith("stock-course-")) {
+    if (selected.id.startsWith("stock-course-") || selected.id.startsWith("ai-local-")) {
       const receiptId = createLocalReceipt(selected, method);
       persistPurchase(selected.id);
+      incrementCourseUsage(learnerEmail);
       createLocalNotification(selected);
       setLoading(false);
       setMessage("Receipt sent to your email.");
@@ -139,6 +186,7 @@ export function CoursePurchasePanel({
     }
 
     persistPurchase(selected.id);
+    incrementCourseUsage(learnerEmail);
     const receiptId = createLocalReceipt(selected, method, data?.receiptNumber);
     setMessage("Receipt sent to your email.");
     router.refresh();
@@ -197,14 +245,14 @@ export function CoursePurchasePanel({
     }
   }
 
-  if (!courses.length) {
+  if (!allCourses.length) {
     return <p className="rounded-xl border border-ink/10 bg-white p-5 text-sm text-ink/60">{emptyText}</p>;
   }
 
   return (
     <>
       <div className={cn("grid gap-4", compact ? "lg:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3")}>
-        {courses.map((course) => {
+        {allCourses.map((course) => {
           const purchased = course.enrolled || purchasedIds.includes(course.id);
 
           return (
@@ -430,4 +478,31 @@ export function CoursePurchasePanel({
       ) : null}
     </>
   );
+}
+
+function learnerEnrollmentLimitMessage(planName: string, limit: number, learnerEmail: string) {
+  if (!Number.isFinite(limit) || limit > 999) {
+    return "";
+  }
+
+  if (limit <= 0) {
+    const upgrade = getPlansForRole("LEARNER").find((plan) => plan.name === "Starter Learner");
+    return `Course enrollment is locked on ${planName}. Upgrade to ${upgrade?.name ?? "Starter Learner"} at ${formatSubscriptionPrice(upgrade?.price ?? 19)} to enroll in courses.`;
+  }
+
+  const usage = readLearnerUsage(learnerEmail);
+  if (usage.courseEnrollments >= limit) {
+    const upgrade = getPlansForRole("LEARNER").find((plan) => plan.name === "Pro Learner");
+    return `You have used ${usage.courseEnrollments}/${limit} course enrollments this month on ${planName}. Upgrade to ${upgrade?.name ?? "Pro Learner"} at ${formatSubscriptionPrice(upgrade?.price ?? 49)} for unlimited access.`;
+  }
+
+  return "";
+}
+
+function incrementCourseUsage(learnerEmail: string) {
+  const usage = readLearnerUsage(learnerEmail);
+  writeLearnerUsage(learnerEmail, {
+    ...usage,
+    courseEnrollments: usage.courseEnrollments + 1
+  });
 }

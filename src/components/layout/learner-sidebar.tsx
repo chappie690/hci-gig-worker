@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { ProfileIdentity } from "@/components/profile/profile-logo";
@@ -15,9 +15,11 @@ const primaryItems = [
 
 const engagementItems = [
   { label: "Sessions", href: "/learner/sessions", icon: CalendarIcon },
-  { label: "AI Chatbot", href: "/learner/chatbot", icon: SparkIcon },
+  { label: "Pilot Pete", href: "/learner/chatbot", icon: SparkIcon },
   { label: "Social Automation", href: "/learner/social-automation", icon: SparkIcon }
 ];
+
+const learnerSidebarScrollKey = "skillpilot-learner-sidebar-scroll";
 
 export function LearnerShellFrame({
   user,
@@ -33,10 +35,28 @@ export function LearnerShellFrame({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const stored = Number(window.localStorage.getItem(learnerSidebarScrollKey) ?? 0);
+      if (sidebarRef.current && Number.isFinite(stored)) {
+        sidebarRef.current.scrollTop = stored;
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <main className="min-h-screen bg-cloud dark:bg-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 overflow-y-auto border-r border-ink/10 bg-white px-5 py-6 shadow-xl shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-950 lg:flex lg:flex-col">
+      <aside
+        ref={sidebarRef}
+        className="fixed inset-y-0 left-0 z-20 hidden w-72 overflow-y-auto overscroll-contain border-r border-ink/10 bg-white px-5 py-6 shadow-xl shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-950 lg:flex lg:flex-col"
+        onScroll={(event) => {
+          window.localStorage.setItem(learnerSidebarScrollKey, String(event.currentTarget.scrollTop));
+        }}
+      >
         <LearnerSidebarContent user={user} activeHref={activeHref} />
       </aside>
 
@@ -58,7 +78,7 @@ export function LearnerShellFrame({
                 <h1 className="truncate text-2xl font-bold text-ink dark:text-slate-100">{title}</h1>
               </div>
             </div>
-            <HeaderActions user={user} />
+            <HeaderActions user={user} showLogout={false} showProfile={false} />
           </div>
         </header>
 
